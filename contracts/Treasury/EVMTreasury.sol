@@ -5,12 +5,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IEVMTreasury.sol";
 
 // PDAO: https://github.com/postech-dao
 
-contract EVMTreasury is Ownable, Pausable, IEVMTreasury {
+contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
     /// @notice The name of this contract
     string public constant name = "PDAO EVM COLONY CHAIN TREASURY V1";
 
@@ -61,7 +62,7 @@ contract EVMTreasury is Ownable, Pausable, IEVMTreasury {
         bytes memory _data,
         uint256 height,
         string memory merkleProof
-    ) external onlyOwner whenNotPaused {
+    ) external onlyOwner whenNotPaused nonReentrant {
         require(
             verify_commitment(_message, height, merkleProof),
             "EVMTreasury::transfer_token: Invalid proof"
