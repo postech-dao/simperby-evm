@@ -12,14 +12,14 @@ require("@nomiclabs/hardhat-etherscan");
 require("@openzeppelin/hardhat-upgrades");
 require("hardhat-spdx-license-identifier");
 
-const mnemonic: string | undefined = process.env.MNEMONIC;
+let mnemonic: string | undefined = process.env.MNEMONIC;
 if (!mnemonic) {
-  throw new Error("Please set your MNEMONIC in a .env file");
+  mnemonic = "test test test test test test test test test test test junk";
 }
 
-const infuraKey: string | undefined = process.env.INFURA_PROJECT_ID;
+let infuraKey: string | undefined = process.env.INFURA_PROJECT_ID;
 if (!infuraKey) {
-  throw new Error("Please set your INFURA_PROJECT_ID in a .env file");
+  infuraKey = "9aa3d95b3bc440fa88ea12eaa4456161";
 }
 
 /**
