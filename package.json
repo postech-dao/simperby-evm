@@ -21,7 +21,8 @@
     "rinkeby:verify": "hardhat --network rinkeby etherscan-verify --solc-input --license GPL-3.0 --force-license",
     "test": "hardhat test",
     "test:coverage": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" hardhat coverage",
-    "test:gas": "cross-env REPORT_GAS=true yarn test"
+    "test:gas": "cross-env REPORT_GAS=true yarn test",
+    "slither": "npm run clean && slither . --detect reentrancy-eth,reentrancy-no-eth,reentrancy-unlimited-gas"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.4",
