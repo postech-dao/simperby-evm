@@ -100,9 +100,9 @@ contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
 
     function withdrawETH(address to, uint256 amount) internal {
         require(address(this).balance >= amount, "EVMTreasury::withdrawETH: Insufficient balance");
-        payable(to).transfer(amount);
-
         emit TransferFungibleToken(address(0), amount, to, 0);
+
+        payable(to).transfer(amount);
     }
 
     function withdrawERC20(address token, address to, uint256 amount) internal {
