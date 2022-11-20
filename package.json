@@ -1,7 +1,7 @@
 {
-  "name": "pdao-evm-colony-dev",
+  "name": "evm-colony-dev",
   "version": "0.0.1",
-  "description": "PDAO colony chain implementation",
+  "description": "EVM colony chain implementation",
   "license": "MIT",
   "scripts": {
     "clean": "hardhat clean",

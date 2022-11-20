@@ -23,7 +23,7 @@ enum DeliverableMessage {
   Custom = 2,
 }
 
-const contract_name: string = "PDAO EVM COLONY CHAIN TREASURY V1";
+const contract_name: string = "EVM COLONY CHAIN TREASURY V1";
 
 type UnPromisify<T> = T extends Promise<infer U> ? U : T;
 

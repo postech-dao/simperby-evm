@@ -9,11 +9,9 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IEVMTreasury.sol";
 
-// PDAO: https://github.com/postech-dao
-
 contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
     /// @notice The name of this contract
-    string public constant name = "PDAO EVM COLONY CHAIN TREASURY V1";
+    string public constant name = "EVM COLONY CHAIN TREASURY V1";
 
     Client public client;
 

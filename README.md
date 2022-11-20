@@ -1,6 +1,6 @@
 # EVM-colony
 
-This repository implements the colony chain interface for EVM-based ecosystem that can interact with PDAO blockchain.
+This repository implements the colony chain interface for EVM-based ecosystem that can interact with simperby.
 
 Try running some of the following tasks:
 
