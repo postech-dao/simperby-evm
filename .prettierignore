@@ -1,6 +1,6 @@
-export/
-artifacts/
-cache/
-coverage/
+src/hardhat/export/
+src/hardhat/artifacts/
+src/hardhat/cache/
+src/hardhat/coverage/
 node_modules/
 package.json
