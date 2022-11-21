@@ -7,12 +7,14 @@ runs:
       with:
         node-version: 18.x
         cache: npm
+        cache-dependency-path: "./contract/package-lock.json"
     - uses: actions/cache@v3
       id: cache
       with:
         path: "**/node_modules"
         key: npm-v3-${{ hashFiles('**/package-lock.json') }}
     - name: Install dependencies
+      working-directory: ./contract
       run: npm ci --prefer-offline
       shell: bash
       if: steps.cache.outputs.cache-hit != 'true'

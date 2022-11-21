@@ -27,6 +27,11 @@ if (!infuraKey) {
  */
 module.exports = {
   defaultNetwork: "hardhat",
+  abiExporter: {
+    path: "./abi",
+    clear: true,
+    flat: true,
+  },
   networks: {
     hardhat: {
       accounts: {
