@@ -18,7 +18,8 @@ pub struct ContractInfo {
     /// in order to succesfully convince the contract. (i.e., this number is something that the consensus should have finalized on-chain).
     ///
     /// - Note1: this is totally irrelevant to the account sequence.
-    /// - Note2: the light client contract doesn't need this because the 'block height' provides the same safety guard.
+    /// - Note2: the light client update operation is not related to this
+    /// because the 'block height' provides the same safety guard.
     pub sequence: u64,
 }
 
@@ -93,19 +94,31 @@ pub trait ResidentialChain: Send + Sync {
     /// Returns the latest header that the light client has verified.
     async fn get_light_client_header(&self) -> Result<Header, Error>;
 
-    /// Returns the current balance of fungible tokens in the treasury contract.
-    async fn get_treasury_fungible_token_balance(&self) -> Result<HashMap<String, Decimal>, Error>;
+    /// Returns the current balance of a particular fungible token in the treasury contract.
+    async fn get_treasury_fungible_token_balance(&self, address: String) -> Result<Decimal, Error>;
 
-    /// Returns the current balance of non-fungible tokens in the treasury contract, identified as `(collection address, token index)`.
-    ///
-    /// Note that the representation of the token index is specific to the chain, so we just provide as a string.
-    async fn get_treasury_non_fungible_token_balance(&self)
-        -> Result<Vec<(String, String)>, Error>;
+    /// Returns the current balance of all fungible tokens in the treasury contract.
+    async fn get_treasury_all_fungible_token_balance(
+        &self,
+    ) -> Result<HashMap<String, Decimal>, Error>;
 
-    /// Updates the light client state by providing the next, valid block header and its proof.
+    /// Returns the current balance of a particular non-fungible token collection in the treasury contract,
+    /// identified as their token indices.
+    async fn get_treasury_non_fungible_token_balance(
+        &self,
+        address: Vec<String>,
+    ) -> Result<String, Error>;
+
+    /// Returns the current balance of all non-fungible tokens in the treasury contract,
+    /// identified as `(collection address, token index)`.
+    async fn get_treasury_all_non_fungible_token_balance(
+        &self,
+    ) -> Result<Vec<(String, String)>, Error>;
+
+    /// Updates the light client state in the treasury by providing the next, valid block header and its proof.
     ///
     /// This is one of the message delivery methods; a transaction that carries the given data will be submitted to the chain.
-    async fn update_light_client(
+    async fn update_treasury_light_client(
         &self,
         header: Header,
         proof: BlockFinalizationProof,
