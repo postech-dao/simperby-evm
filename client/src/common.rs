@@ -17,7 +17,7 @@ pub struct MerkleProof {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct FungibleTokenTransfer {
-    pub token_id: String,
+    pub token_address: String,
     pub amount: u128,
     pub receiver_address: String,
     pub contract_sequence: u64,
