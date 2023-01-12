@@ -88,13 +88,6 @@ describe("EVMTreasury", function () {
 
       expect(await erc20.balanceOf(treasury.address)).to.equal(E18_500K);
     });
-    it("Ownership required", async function () {
-      const { treasury, alice, bob } = fixture;
-
-      await expect(
-        treasury.connect(bob).transfer_token(message, data, height, merkleProof)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
 
     it("Not enough funds", async function () {
       const { treasury, alice } = fixture;

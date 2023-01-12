@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IEVMTreasury.sol";
 
-contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
+contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     /// @notice The name of this contract
     string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
 
@@ -60,7 +60,7 @@ contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
         bytes memory _data,
         uint256 height,
         string memory merkleProof
-    ) external onlyOwner whenNotPaused nonReentrant {
+    ) external whenNotPaused nonReentrant {
         require(
             verify_commitment(_message, height, merkleProof),
             "EVMTreasury::transfer_token: Invalid proof"
@@ -126,10 +126,7 @@ contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
 
     /// @notice The argument types and logic need to be replaced with the proper types
-    function update_light_client(
-        string memory header,
-        string memory proof
-    ) public onlyOwner whenNotPaused {
+    function update_light_client(string memory header, string memory proof) public whenNotPaused {
         require(
             keccak256(abi.encodePacked(proof)) == keccak256(abi.encodePacked("valid")),
             "EVMTreasury::update_light_client: Invalid block finalization proof"
