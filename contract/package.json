@@ -1,7 +1,7 @@
 {
-  "name": "evm-colony-dev",
+  "name": "evm-settlement-dev",
   "version": "0.0.1",
-  "description": "EVM colony chain implementation",
+  "description": "EVM settlement chain implementation",
   "license": "MIT",
   "scripts": {
     "clean": "hardhat clean",

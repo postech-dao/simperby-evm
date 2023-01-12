@@ -1,6 +1,6 @@
-# EVM-colony
+# EVM-settlement
 
-This repository implements the colony chain interface for EVM-based ecosystem that can interact with simperby.
+This repository implements the settlement chain interface for EVM-based ecosystem that can interact with simperby.
 
 Try running some of the following tasks:
 

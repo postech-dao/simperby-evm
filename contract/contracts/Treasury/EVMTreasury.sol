@@ -11,7 +11,7 @@ import "./interfaces/IEVMTreasury.sol";
 
 contract EVMTreasury is Ownable, Pausable, ReentrancyGuard, IEVMTreasury {
     /// @notice The name of this contract
-    string public constant name = "EVM COLONY CHAIN TREASURY V1";
+    string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
 
     Client public client;
 
