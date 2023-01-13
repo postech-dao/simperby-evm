@@ -27,10 +27,9 @@ interface IEVMTreasury {
         uint256 contract_sequence;
     }
 
-    // replace with proper types
     struct Client {
         uint256 height;
-        string last_header;
+        bytes last_header;
         string chain_name;
     }
 
@@ -41,9 +40,9 @@ interface IEVMTreasury {
         string memory merkleProof
     ) external;
 
-    function update_light_client(string memory header, string memory proof) external;
+    function update_light_client(bytes memory header, bytes[] memory proof) external;
 
-    function verify_commitment(
+    function verify_transaction_commitment(
         DeliverableMessage message,
         uint256 height,
         string memory MerkleProof

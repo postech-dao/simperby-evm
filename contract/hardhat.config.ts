@@ -22,6 +22,9 @@ if (!infuraKey) {
   infuraKey = "9aa3d95b3bc440fa88ea12eaa4456161";
 }
 
+let coinmarketcap_api_key: string | undefined =
+  process.env.COINMARKETCAP_API_KEY;
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
@@ -292,10 +295,11 @@ module.exports = {
     apiKey: process.env.ETHERSCAN_API_KEY, // ETH Mainnet
   },
   gasReporter: {
-    currency: "USD",
-    gasPrice: 80,
     enabled: true,
-    maxMethodDiff: 10,
+    outputFile: "gas-report.txt",
+    noColors: true,
+    currency: "USD",
+    coinmarketcap: coinmarketcap_api_key,
   },
   contractSizer: {
     alphaSort: true,
