@@ -25,7 +25,7 @@ async function main() {
     name,
     symbol,
     initialAccount,
-    initialBalance,
+    initialBalance
   );
 
   const ERC721Mock = await ethers.getContractFactory("ERC721Mock");
@@ -40,7 +40,7 @@ async function main() {
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
-main().catch(error => {
+main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
