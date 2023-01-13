@@ -14,3 +14,6 @@ futures = "0.3"
 log = "0.4"
 thiserror = "1.0.32"
 rust_decimal = "1.25.0"
+simperby-settlement = { git = "https://github.com/postech-dao/simperby" }
+simperby-common = { git = "https://github.com/postech-dao/simperby" }
+eyre = "0.6.8"
