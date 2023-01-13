@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../Library/Verify.sol";
 import "./interfaces/IEVMTreasury.sol";
 
 contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
@@ -16,7 +17,8 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     Client public client;
 
     mapping(uint256 => Client) public clients;
-
+    // TODO: add/delete validator set
+    mapping(bytes => uint64) public validator_set;
     /* ========== EVENTS ========== */
 
     event TransferFungibleToken(
@@ -33,11 +35,11 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         uint256 contract_sequence
     );
 
-    event UpdateLightclient(uint256 indexed height, string last_header, string chain_name);
+    event UpdateLightclient(uint256 indexed height, bytes last_header, string chain_name);
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(string memory initial_header, string memory chain_name) {
+    constructor(bytes memory initial_header, string memory chain_name) {
         // Genesis block
         client = Client(0, initial_header, chain_name);
         clients[0] = client;
@@ -62,7 +64,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         string memory merkleProof
     ) external whenNotPaused nonReentrant {
         require(
-            verify_commitment(_message, height, merkleProof),
+            verify_transaction_commitment(_message, height, merkleProof),
             "EVMTreasury::transfer_token: Invalid proof"
         );
 
@@ -124,22 +126,34 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     }
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
-
-    /// @notice The argument types and logic need to be replaced with the proper types
-    function update_light_client(string memory header, string memory proof) public whenNotPaused {
+    function update_light_client(
+        bytes calldata header,
+        bytes[] calldata proof
+    ) public whenNotPaused {
+        Verify.BlockHeader memory block_header = Verify.parse_header(header);
         require(
-            keccak256(abi.encodePacked(proof)) == keccak256(abi.encodePacked("valid")),
-            "EVMTreasury::update_light_client: Invalid block finalization proof"
+            Verify.verify_header_to_header(client.last_header, header),
+            "EVMTreasury::update_light_client: Invalid header"
         );
-        client.height += 1;
+        require(
+            Verify.verify_finalization_proof(block_header, keccak256(header), proof),
+            "EVMTreasury::update_light_client: Invalid finalization proof"
+        );
+
+        clients[block_header.block_height] = Client(
+            block_header.block_height,
+            header,
+            client.chain_name
+        );
+        client.height = block_header.block_height;
         client.last_header = header;
-        clients[client.height] = client;
+        client.chain_name = client.chain_name;
 
         emit UpdateLightclient(client.height, header, client.chain_name);
     }
 
     /// @notice The argument types and logic need to be replaced with the proper types
-    function verify_commitment(
+    function verify_transaction_commitment(
         DeliverableMessage message,
         uint256 height,
         string memory merkleProof
