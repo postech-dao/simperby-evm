@@ -60,7 +60,7 @@ describe("EVMTreasury", function () {
         "bytes32",
         "bytes[]",
         "uint64[]",
-        "bytes32",
+        "string",
       ],
       [
         alice_pk_modified, // Delete prefix (02 | 03 | 04)
@@ -72,7 +72,7 @@ describe("EVMTreasury", function () {
         ethers.constants.HashZero,
         [alice_pk_modified],
         [100],
-        ethers.utils.formatBytes32String(version), // String to bytes32
+        version,
       ]
     );
 
@@ -153,7 +153,7 @@ describe("EVMTreasury", function () {
           "bytes32",
           "bytes[]",
           "uint64[]",
-          "bytes32",
+          "string",
         ],
         [
           alice_pk_modified,
@@ -165,7 +165,7 @@ describe("EVMTreasury", function () {
           ethers.constants.HashZero,
           [alice_pk_modified, bob_pk_modified, charlie_pk_modified],
           [100, 100, 100],
-          ethers.utils.formatBytes32String(version),
+          version,
         ]
       );
 
@@ -205,6 +205,26 @@ describe("EVMTreasury", function () {
       ).to.emit(treasury, "UpdateLightclient");
 
       expect((await treasury.client()).last_header).to.equal(header);
+      // const header_from_contract = (await treasury.client()).last_header;
+      // const decoded_header_from_contract = ethers.utils.defaultAbiCoder.decode(
+      //   [
+      //     "bytes",
+      //     "bytes[]",
+      //     "bytes32",
+      //     "uint64",
+      //     "int64",
+      //     "bytes32",
+      //     "bytes32",
+      //     "bytes[]",
+      //     "uint64[]",
+      //     "string",
+      //   ],
+      //   header_from_contract
+      // );
+      // console.log(
+      //   "Retrieved header from contract: ",
+      //   decoded_header_from_contract
+      // );
     });
   });
 

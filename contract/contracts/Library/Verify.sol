@@ -16,7 +16,7 @@ library Verify {
         bytes32 repository_merkle_root;
         bytes[] validators;
         uint64[] voting_power;
-        bytes32 version;
+        string version;
     }
 
     function verify_header_to_header(
@@ -120,7 +120,7 @@ library Verify {
             bytes32 repository_merkle_root,
             bytes[] memory validators,
             uint64[] memory voting_power,
-            bytes32 version
+            string memory version
         ) = abi.decode(
                 header,
                 (
@@ -133,7 +133,7 @@ library Verify {
                     bytes32,
                     bytes[],
                     uint64[],
-                    bytes32
+                    string
                 )
             );
 
