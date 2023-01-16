@@ -65,8 +65,8 @@ library Verify {
         bytes32 headerHash,
         bytes[] memory finalizationProof
     ) internal pure returns (bool) {
-        uint64 _totalVotingPower;
-        uint64 _votedVotingPower;
+        uint256 _totalVotingPower;
+        uint256 _votedVotingPower;
         for (uint i = 0; i < header.validators.length; i++) {
             _totalVotingPower += header.votingPowers[i];
         }
