@@ -43,7 +43,7 @@ library Verify {
                 break;
             } else {
                 if (i == _prevBlockHeader.validators.length - 1) {
-                    return false;
+                    revert("Verify::verifyHeaderToHeader: Invalid block author");
                 }
             }
         }
