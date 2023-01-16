@@ -18,30 +18,30 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     mapping(uint256 => Client) public clients;
     // TODO: add/delete validator set
-    mapping(bytes => uint64) public validator_set;
+    mapping(bytes => uint64) public validatorSet;
     /* ========== EVENTS ========== */
 
     event TransferFungibleToken(
-        address indexed token_address,
+        address indexed tokenAddress,
         uint256 amount,
-        address indexed receiver_address,
-        uint256 contract_sequence
+        address indexed receiverAddress,
+        uint256 contractSequence
     );
 
     event TransferNonFungibleToken(
-        address indexed collection_address,
-        uint256 token_index,
-        address indexed receiver_address,
-        uint256 contract_sequence
+        address indexed tokenAddress,
+        uint256 tokenIndex,
+        address indexed receiverAddress,
+        uint256 contractSequence
     );
 
-    event UpdateLightclient(uint256 indexed height, bytes last_header, string chain_name);
+    event UpdateLightClient(uint256 indexed height, bytes lastHeader, string chainName);
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(bytes memory initial_header, string memory chain_name) {
+    constructor(bytes memory initialHeader, string memory chainName) {
         // Genesis block
-        client = Client(0, initial_header, chain_name);
+        client = Client(0, initialHeader, chainName);
         clients[0] = client;
     }
 
@@ -51,21 +51,21 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     /* ========== TREASURY FUNCTIONS ========== */
 
-    /// @notice The ```transfer_token``` function is used to transfer tokens from the treasury to the receiver
+    /// @notice The ```transferToken``` function is used to transfer tokens from the treasury to the receiver
     /// @dev Since we can't have struct in enum in solidity, need to seperate message type and data
     /// @param _message The type of the message
     /// @param _data The data of the message
     /// @param height The height of the consensus block
     /// @param merkleProof The merkle proof of the message
-    function transfer_token(
+    function transferToken(
         DeliverableMessage _message,
         bytes memory _data,
         uint256 height,
         string memory merkleProof
     ) external whenNotPaused nonReentrant {
         require(
-            verify_transaction_commitment(_message, height, merkleProof),
-            "EVMTreasury::transfer_token: Invalid proof"
+            verifyTransactionCommitment(_message, height, merkleProof),
+            "EVMTreasury::transferToken: Invalid proof"
         );
 
         if (_message == DeliverableMessage.FungibleTokenTransfer) {
@@ -73,12 +73,12 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
                 _data,
                 (FungibleTokenTransfer)
             );
-            if (fungibleTokenTransfer.token_address == address(0)) {
-                withdrawETH(fungibleTokenTransfer.receiver_address, fungibleTokenTransfer.amount);
+            if (fungibleTokenTransfer.tokenAddress == address(0)) {
+                withdrawETH(fungibleTokenTransfer.receiverAddress, fungibleTokenTransfer.amount);
             } else {
                 withdrawERC20(
-                    fungibleTokenTransfer.token_address,
-                    fungibleTokenTransfer.receiver_address,
+                    fungibleTokenTransfer.tokenAddress,
+                    fungibleTokenTransfer.receiverAddress,
                     fungibleTokenTransfer.amount
                 );
             }
@@ -88,9 +88,9 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
                 (NonFungibleTokenTransfer)
             );
             withdrawERC721(
-                nonFungibleTokenTransfer.collection_address,
-                nonFungibleTokenTransfer.receiver_address,
-                nonFungibleTokenTransfer.token_index
+                nonFungibleTokenTransfer.collectionAddress,
+                nonFungibleTokenTransfer.receiverAddress,
+                nonFungibleTokenTransfer.tokenIndex
             );
         } else {
             Custom memory custom = abi.decode(_data, (Custom));
@@ -126,39 +126,35 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     }
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
-    function update_light_client(
-        bytes calldata header,
-        bytes[] calldata proof
-    ) public whenNotPaused {
-        Verify.BlockHeader memory block_header = Verify.parse_header(header);
+    function updateLightClient(bytes calldata header, bytes[] calldata proof) public whenNotPaused {
+        Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
         require(
-            Verify.verify_header_to_header(client.last_header, header),
-            "EVMTreasury::update_light_client: Invalid header"
+            Verify.verifyHeaderToHeader(client.lastHeader, header),
+            "EVMTreasury::updateLightClient: Invalid header"
         );
         require(
-            Verify.verify_finalization_proof(block_header, keccak256(header), proof),
-            "EVMTreasury::update_light_client: Invalid finalization proof"
+            Verify.verifyFinalizationProof(_blockHeader, keccak256(header), proof),
+            "EVMTreasury::updateLightClient: Invalid finalization proof"
         );
 
-        clients[block_header.block_height] = Client(
-            block_header.block_height,
+        clients[_blockHeader.blockHeight] = Client(
+            _blockHeader.blockHeight,
             header,
-            client.chain_name
+            client.chainName
         );
-        client.height = block_header.block_height;
-        client.last_header = header;
-        client.chain_name = client.chain_name;
+        client.height = _blockHeader.blockHeight;
+        client.lastHeader = header;
 
-        emit UpdateLightclient(client.height, header, client.chain_name);
+        emit UpdateLightClient(client.height, header, client.chainName);
     }
 
     /// @notice The argument types and logic need to be replaced with the proper types
-    function verify_transaction_commitment(
+    function verifyTransactionCommitment(
         DeliverableMessage message,
         uint256 height,
         string memory merkleProof
-    ) public view returns (bool is_valid) {
-        is_valid =
+    ) public view returns (bool isValid) {
+        isValid =
             client.height == height &&
             keccak256(abi.encodePacked(merkleProof)) == keccak256(abi.encodePacked("valid"));
     }

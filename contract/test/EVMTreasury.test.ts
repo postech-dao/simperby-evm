@@ -130,7 +130,7 @@ describe("EVMTreasury", function () {
         charlie_pk.slice(0, 2) + charlie_pk.slice(4, charlie_pk.length);
 
       // Make signature and proofs for previous block header
-      const prev_header = (await treasury.client()).last_header;
+      const prev_header = (await treasury.client()).lastHeader;
       const prev_header_hash = await ethers.utils.keccak256(prev_header);
       const prev_signature = await alice.signMessage(
         ethers.utils.arrayify(prev_header_hash)
@@ -197,14 +197,14 @@ describe("EVMTreasury", function () {
       const { treasury, erc20, alice, bob, charlie } = fixture;
 
       await expect(
-        treasury.update_light_client(header, [
+        treasury.updateLightClient(header, [
           proof_alice,
           proof_bob,
           proof_charlie,
         ])
-      ).to.emit(treasury, "UpdateLightclient");
+      ).to.emit(treasury, "UpdateLightClient");
 
-      expect((await treasury.client()).last_header).to.equal(header);
+      expect((await treasury.client()).lastHeader).to.equal(header);
       // const header_from_contract = (await treasury.client()).last_header;
       // const decoded_header_from_contract = ethers.utils.defaultAbiCoder.decode(
       //   [
@@ -256,7 +256,7 @@ describe("EVMTreasury", function () {
       await expect(
         treasury
           .connect(alice)
-          .transfer_token(message, data_wrong, height, merkleProof)
+          .transferToken(message, data_wrong, height, merkleProof)
       ).to.be.revertedWith("EVMTreasury::withdrawERC20: Insufficient balance");
     });
 
@@ -269,8 +269,8 @@ describe("EVMTreasury", function () {
       await expect(
         treasury
           .connect(alice)
-          .transfer_token(message, data, height, merkleProof)
-      ).to.be.revertedWith("EVMTreasury::transfer_token: Invalid proof");
+          .transferToken(message, data, height, merkleProof)
+      ).to.be.revertedWith("EVMTreasury::transferToken: Invalid proof");
     });
   });
 
@@ -299,7 +299,7 @@ describe("EVMTreasury", function () {
       await expect(
         treasury
           .connect(alice)
-          .transfer_token(message, data, height, merkleProof)
+          .transferToken(message, data, height, merkleProof)
       ).to.emit(treasury, "TransferFungibleToken");
 
       expect(await erc20.balanceOf(treasury.address)).to.equal(0);
@@ -320,7 +320,7 @@ describe("EVMTreasury", function () {
       await expect(
         treasury
           .connect(alice)
-          .transfer_token(message, data, height, merkleProof)
+          .transferToken(message, data, height, merkleProof)
       ).to.emit(treasury, "TransferNonFungibleToken");
 
       expect(await erc721.balanceOf(treasury.address)).to.equal(0);
