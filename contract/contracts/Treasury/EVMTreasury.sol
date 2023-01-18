@@ -128,14 +128,9 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
     function updateLightClient(bytes calldata header, bytes[] calldata proof) public whenNotPaused {
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
-        require(
-            Verify.verifyHeaderToHeader(client.lastHeader, header),
-            "EVMTreasury::updateLightClient: Invalid header"
-        );
-        require(
-            Verify.verifyFinalizationProof(_blockHeader, keccak256(header), proof),
-            "EVMTreasury::updateLightClient: Invalid finalization proof"
-        );
+
+        Verify.verifyHeaderToHeader(client.lastHeader, header);
+        Verify.verifyFinalizationProof(_blockHeader, keccak256(header), proof);
 
         clients[_blockHeader.blockHeight] = Client(
             _blockHeader.blockHeight,

@@ -19,10 +19,7 @@ library Verify {
         string version;
     }
 
-    function verifyHeaderToHeader(
-        bytes memory prevHeader,
-        bytes memory header
-    ) internal pure returns (bool) {
+    function verifyHeaderToHeader(bytes memory prevHeader, bytes memory header) internal pure {
         BlockHeader memory _prevBlockHeader = parseHeader(prevHeader);
         BlockHeader memory _blockHeader = parseHeader(header);
         require(
@@ -48,23 +45,18 @@ library Verify {
             }
         }
 
-        require(
-            verifyFinalizationProof(
-                _prevBlockHeader,
-                _blockHeader.previousHash,
-                _blockHeader.prevBlockFinalizationProof
-            ),
-            "Verify::verifyHeaderToHeader: Invalid finalization proof"
+        verifyFinalizationProof(
+            _prevBlockHeader,
+            _blockHeader.previousHash,
+            _blockHeader.prevBlockFinalizationProof
         );
-
-        return true;
     }
 
     function verifyFinalizationProof(
         BlockHeader memory header,
         bytes32 headerHash,
         bytes[] memory finalizationProof
-    ) internal pure returns (bool) {
+    ) internal pure {
         uint256 _totalVotingPower;
         uint256 _votedVotingPower;
         for (uint i = 0; i < header.validators.length; i++) {
@@ -87,7 +79,6 @@ library Verify {
             _votedVotingPower * 3 > _totalVotingPower * 2,
             "Verify::verifyFinalizationProof: Not enough voting power"
         );
-        return true;
     }
 
     function splitSignature(
