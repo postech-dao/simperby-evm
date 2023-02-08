@@ -16,7 +16,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     /// @notice The name of this contract
     string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
-    bytes public constant chainName = hex'657468657265756d'; // ethereum
+    bytes public constant chainName = hex"657468657265756d"; // ethereum
     uint128 public constant contractSequence = 0;
 
     LightClient public lightClient;
@@ -60,11 +60,11 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     /* ========== TREASURY FUNCTIONS ========== */
     /**
-    * @dev Functions to execute transactions.
-    * @param transaction The transaction to be executed.
-    * @param blockHeight The block height of the transaction.
-    * @param merkleProof The merkle proof of the transaction.
-    */
+     * @dev Functions to execute transactions.
+     * @param transaction The transaction to be executed.
+     * @param blockHeight The block height of the transaction.
+     * @param merkleProof The merkle proof of the transaction.
+     */
     function execute(
         bytes memory transaction,
         uint64 blockHeight,
@@ -161,10 +161,10 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
     /**
-    * @dev Functions to update light client.
-    * @param header The header to be updated.
-    * @param proof The finalization proof of the header.
-    */
+     * @dev Functions to update light client.
+     * @param header The header to be updated.
+     * @param proof The finalization proof of the header.
+     */
     function updateLightClient(bytes memory header, bytes calldata proof) public whenNotPaused {
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
         Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
