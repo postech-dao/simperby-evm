@@ -2,49 +2,36 @@
 pragma solidity ^0.8.0;
 
 interface IEVMTreasury {
-    enum DeliverableMessage {
-        FungibleTokenTransfer,
-        NonFungibleTokenTransfer,
-        Custom
-    }
-
     struct FungibleTokenTransfer {
+        int64 timestamp;
+        uint128 contractSequence;
+        uint128 amount;
+        bytes chain;
         address tokenAddress;
-        uint256 amount;
         address receiverAddress;
-        uint256 contractSequence;
     }
 
     struct NonFungibleTokenTransfer {
+        int64 timestamp;
+        uint128 contractSequence;
+        uint128 tokenId;
+        bytes chain;
         address collectionAddress;
-        uint256 tokenIndex;
         address receiverAddress;
-        uint256 contractSequence;
     }
 
-    struct Custom {
-        string message;
-        uint256 contractSequence;
-    }
-
-    struct Client {
-        uint256 height;
+    struct LightClient {
+        uint64 heightOffset;
         bytes lastHeader;
-        string chainName;
+        bytes32[] repositoryRoots;
+        bytes32[] commitRoots;
     }
 
-    function transferToken(
-        DeliverableMessage _message,
-        bytes memory _data,
-        uint256 height,
-        string memory merkleProof
+    function execute(
+        bytes memory transaction,
+        uint64 blockHeight,
+        bytes memory merkleProof
     ) external;
 
-    function updateLightClient(bytes memory header, bytes[] memory proof) external;
-
-    function verifyTransactionCommitment(
-        DeliverableMessage message,
-        uint256 height,
-        string memory MerkleProof
-    ) external returns (bool);
+    function updateLightClient(bytes memory header, bytes memory proof) external;
 }

@@ -3,22 +3,25 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-// import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../Library/Verify.sol";
+import "../Library/BytesLib.sol";
+import "../Library/Utils.sol";
 import "./interfaces/IEVMTreasury.sol";
 
 contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
+    using BytesLib for bytes;
+
     /// @notice The name of this contract
     string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
+    bytes public constant chainName = hex'657468657265756d'; // ethereum
+    uint128 public constant contractSequence = 0;
 
-    Client public client;
+    LightClient public lightClient;
 
-    mapping(uint256 => Client) public clients;
-    // TODO: add/delete validator set
-    mapping(bytes => uint64) public validatorSet;
+    mapping(uint256 => LightClient) public lightClients;
     /* ========== EVENTS ========== */
 
     event TransferFungibleToken(
@@ -35,44 +38,60 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         uint256 contractSequence
     );
 
-    event UpdateLightClient(uint256 indexed height, bytes lastHeader, string chainName);
+    event UpdateLightClient(bytes lastHeader);
 
     /* ========== CONSTRUCTOR ========== */
+    constructor(bytes memory initialHeader) {
+        Verify.BlockHeader memory _blockHeader = Verify.parseHeader(initialHeader);
 
-    constructor(bytes memory initialHeader, string memory chainName) {
-        // Genesis block
-        client = Client(0, initialHeader, chainName);
-        clients[0] = client;
+        bytes32[] memory repositoryRoots = new bytes32[](1);
+        bytes32[] memory commitRoots = new bytes32[](1);
+        repositoryRoots[0] = _blockHeader.repositoryMerkleRoot;
+        commitRoots[0] = _blockHeader.commitMerkleRoot;
+
+        lightClient = LightClient(
+            _blockHeader.blockHeight,
+            initialHeader,
+            repositoryRoots,
+            commitRoots
+        );
+        lightClients[0] = lightClient;
     }
 
-    /* ========== VIEWS ========== */
-
-    /// TODO: add view functions if needed
-
     /* ========== TREASURY FUNCTIONS ========== */
-
-    /// @notice The ```transferToken``` function is used to transfer tokens from the treasury to the receiver
-    /// @dev Since we can't have struct in enum in solidity, need to seperate message type and data
-    /// @param _message The type of the message
-    /// @param _data The data of the message
-    /// @param height The height of the consensus block
-    /// @param merkleProof The merkle proof of the message
-    function transferToken(
-        DeliverableMessage _message,
-        bytes memory _data,
-        uint256 height,
-        string memory merkleProof
-    ) external whenNotPaused nonReentrant {
-        require(
-            verifyTransactionCommitment(_message, height, merkleProof),
-            "EVMTreasury::transferToken: Invalid proof"
-        );
-
-        if (_message == DeliverableMessage.FungibleTokenTransfer) {
-            FungibleTokenTransfer memory fungibleTokenTransfer = abi.decode(
-                _data,
-                (FungibleTokenTransfer)
+    /**
+    * @dev Functions to execute transactions.
+    * @param transaction The transaction to be executed.
+    * @param blockHeight The block height of the transaction.
+    * @param merkleProof The merkle proof of the transaction.
+    */
+    function execute(
+        bytes memory transaction,
+        uint64 blockHeight,
+        bytes memory merkleProof
+    ) public whenNotPaused nonReentrant {
+        uint64 lengthOfHeader = Utils.reverse64(transaction.slice(41, 8).toUint64(0));
+        if (lengthOfHeader == 25) {
+            FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTTransaction(
+                transaction
             );
+            require(
+                fungibleTokenTransfer.contractSequence == contractSequence,
+                "EVMTreasury::execute: Invalid contract sequence"
+            );
+            require(
+                keccak256(fungibleTokenTransfer.chain) == keccak256(chainName),
+                "EVMTreasury::execute: Invalid chain"
+            );
+
+            Verify.verifyTransactionCommitment(
+                transaction,
+                lightClient.commitRoots,
+                merkleProof,
+                blockHeight,
+                lightClient.heightOffset
+            );
+
             if (fungibleTokenTransfer.tokenAddress == address(0)) {
                 withdrawETH(fungibleTokenTransfer.receiverAddress, fungibleTokenTransfer.amount);
             } else {
@@ -82,19 +101,34 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
                     fungibleTokenTransfer.amount
                 );
             }
-        } else if (_message == DeliverableMessage.NonFungibleTokenTransfer) {
-            NonFungibleTokenTransfer memory nonFungibleTokenTransfer = abi.decode(
-                _data,
-                (NonFungibleTokenTransfer)
+        } else if (lengthOfHeader == 26) {
+            NonFungibleTokenTransfer memory nonFungibleTokenTransfer = Verify.parseNFTTransaction(
+                transaction
             );
+            require(
+                nonFungibleTokenTransfer.contractSequence == contractSequence,
+                "EVMTreasury::execute: Invalid contract sequence"
+            );
+            require(
+                keccak256(nonFungibleTokenTransfer.chain) == keccak256(chainName),
+                "EVMTreasury::execute: Invalid chain"
+            );
+
+            Verify.verifyTransactionCommitment(
+                transaction,
+                lightClient.commitRoots,
+                merkleProof,
+                blockHeight,
+                lightClient.heightOffset
+            );
+
             withdrawERC721(
                 nonFungibleTokenTransfer.collectionAddress,
                 nonFungibleTokenTransfer.receiverAddress,
-                nonFungibleTokenTransfer.tokenIndex
+                nonFungibleTokenTransfer.tokenId
             );
         } else {
-            Custom memory custom = abi.decode(_data, (Custom));
-            /// TODO: add custom message
+            revert("Invalid transaction header");
         }
     }
 
@@ -126,31 +160,29 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
     }
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
-    function updateLightClient(bytes calldata header, bytes[] calldata proof) public whenNotPaused {
+    /**
+    * @dev Functions to update light client.
+    * @param header The header to be updated.
+    * @param proof The finalization proof of the header.
+    */
+    function updateLightClient(bytes memory header, bytes calldata proof) public whenNotPaused {
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
+        Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
 
-        Verify.verifyHeaderToHeader(client.lastHeader, header);
-        Verify.verifyFinalizationProof(_blockHeader, keccak256(header), proof);
+        Verify.verifyHeaderToHeader(lightClient.lastHeader, header);
+        Verify.verifyFinalizationProof(_blockHeader, Utils.hashHeader(header), _proof);
 
-        clients[_blockHeader.blockHeight] = Client(
-            _blockHeader.blockHeight,
+        lightClient.lastHeader = header;
+        lightClient.repositoryRoots.push(_blockHeader.repositoryMerkleRoot);
+        lightClient.commitRoots.push(_blockHeader.commitMerkleRoot);
+
+        lightClients[_blockHeader.blockHeight] = LightClient(
+            lightClient.heightOffset,
             header,
-            client.chainName
+            lightClient.repositoryRoots,
+            lightClient.commitRoots
         );
-        client.height = _blockHeader.blockHeight;
-        client.lastHeader = header;
 
-        emit UpdateLightClient(client.height, header, client.chainName);
-    }
-
-    /// @notice The argument types and logic need to be replaced with the proper types
-    function verifyTransactionCommitment(
-        DeliverableMessage message,
-        uint256 height,
-        string memory merkleProof
-    ) public view returns (bool isValid) {
-        isValid =
-            client.height == height &&
-            keccak256(abi.encodePacked(merkleProof)) == keccak256(abi.encodePacked("valid"));
+        emit UpdateLightClient(lightClient.lastHeader);
     }
 }
