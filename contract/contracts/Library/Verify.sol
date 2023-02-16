@@ -12,6 +12,13 @@ import "../Treasury/interfaces/IEVMTreasury.sol";
 library Verify {
     using BytesLib for bytes;
 
+    uint16 constant sigLength = 65;
+    uint16 constant pkLength = 33; // Should be fixed to 65 bytes
+    uint16 constant hashLength = 32;
+    uint16 constant addressLength = 20;
+    uint16 constant uint128Length = 16;
+    uint16 constant strLength = 8;
+
     struct TypedSignature {
         bytes signature;
         bytes signer;
@@ -107,7 +114,7 @@ library Verify {
         uint64 heightOffset
     ) internal pure {
         require(
-            blockHeight < heightOffset || blockHeight >= heightOffset + commitRoots.length,
+            blockHeight >= heightOffset && blockHeight < heightOffset + commitRoots.length,
             "Verify::verifyTransactionCommitment: Invalid block height"
         );
 
@@ -115,8 +122,8 @@ library Verify {
         bytes32 calculatedRoot = keccak256(transaction);
 
         uint256 offset = 0;
-        uint64 lenOfProof = Utils.reverse64(merkleProof.slice(offset, 8).toUint64(0));
-        offset += 8;
+        uint64 lenOfProof = Utils.reverse64(merkleProof.slice(offset, strLength).toUint64(0));
+        offset += strLength;
 
         for (uint i = 0; i < lenOfProof; i++) {
             uint64 enumOrder = Utils.reverse64(merkleProof.slice(offset, 4).toUint64(0));
@@ -124,14 +131,14 @@ library Verify {
 
             if (enumOrder == 1) {
                 // Left child
-                bytes32 leftPairHash = merkleProof.slice(offset, 32).toBytes32(0);
+                bytes32 leftPairHash = merkleProof.slice(offset, hashLength).toBytes32(0);
                 calculatedRoot = keccak256(abi.encodePacked(leftPairHash, calculatedRoot));
-                offset += 32;
+                offset += hashLength;
             } else if (enumOrder == 2) {
                 // Right child
-                bytes32 rightPairHash = merkleProof.slice(offset, 32).toBytes32(0);
+                bytes32 rightPairHash = merkleProof.slice(offset, hashLength).toBytes32(0);
                 calculatedRoot = keccak256(abi.encodePacked(calculatedRoot, rightPairHash));
-                offset += 32;
+                offset += hashLength;
             } else {
                 revert("Invalid enum order in merkle proof");
             }
@@ -168,11 +175,14 @@ library Verify {
 
         TypedSignature[] memory fp = new TypedSignature[](len);
 
-        uint256 offset = 8;
+        uint256 offset = strLength;
 
         for (uint256 i = 0; i < len; i++) {
-            fp[i] = TypedSignature(input.slice(offset, 65), input.slice(offset + 65, 33));
-            offset += 98;
+            fp[i] = TypedSignature(
+                input.slice(offset, sigLength),
+                input.slice(offset + sigLength, pkLength)
+            );
+            offset += (sigLength + pkLength);
         }
 
         return fp;
@@ -183,12 +193,12 @@ library Verify {
     ) internal pure returns (BlockHeader memory blockHeader) {
         uint offset = 0;
 
-        blockHeader.author = hexEncodedData.slice(offset + 1, 33);
-        offset += 33;
+        blockHeader.author = hexEncodedData.slice(offset, pkLength);
+        offset += pkLength;
 
         {
-            uint64 len = Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0));
-            offset += 8;
+            uint64 len = Utils.reverse64(hexEncodedData.slice(offset, strLength).toUint64(0));
+            offset += strLength;
             blockHeader.prevBlockFinalizationProof = new TypedSignature[](len);
 
             bytes memory sig_;
@@ -196,42 +206,46 @@ library Verify {
 
             if (len != 0) {
                 for (uint i = 0; i < len; i++) {
-                    sig_ = hexEncodedData.slice(offset, 65);
-                    offset += 65;
-                    signer_ = hexEncodedData.slice(offset + 1, 33);
-                    offset += 33;
+                    sig_ = hexEncodedData.slice(offset, sigLength);
+                    offset += sigLength;
+                    signer_ = hexEncodedData.slice(offset, pkLength);
+                    offset += pkLength;
 
                     blockHeader.prevBlockFinalizationProof[i] = TypedSignature(sig_, signer_);
                 }
             }
         }
 
-        blockHeader.previousHash = hexEncodedData.slice(offset, 32).toBytes32(0);
-        offset += 32;
+        blockHeader.previousHash = hexEncodedData.slice(offset, hashLength).toBytes32(0);
+        offset += hashLength;
 
-        blockHeader.blockHeight = Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0));
-        offset += 8;
+        blockHeader.blockHeight = Utils.reverse64(
+            hexEncodedData.slice(offset, strLength).toUint64(0)
+        );
+        offset += strLength;
 
         blockHeader.timestamp = int64(Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0)));
         offset += 8;
 
-        blockHeader.commitMerkleRoot = hexEncodedData.slice(offset, 32).toBytes32(0);
-        offset += 32;
+        blockHeader.commitMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
+        offset += hashLength;
 
-        blockHeader.repositoryMerkleRoot = hexEncodedData.slice(offset, 32).toBytes32(0);
-        offset += 32;
+        blockHeader.repositoryMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
+        offset += hashLength;
 
         {
-            uint64 validatorsLen = Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0));
-            offset += 8;
+            uint64 validatorsLen = Utils.reverse64(
+                hexEncodedData.slice(offset, strLength).toUint64(0)
+            );
+            offset += strLength;
             blockHeader.validators = new validatorSet[](validatorsLen);
 
             bytes memory validator_;
             uint64 votingPower_;
 
             for (uint i = 0; i < validatorsLen; i++) {
-                validator_ = hexEncodedData.slice(offset + 1, 33);
-                offset += 33;
+                validator_ = hexEncodedData.slice(offset, pkLength);
+                offset += pkLength;
                 votingPower_ = Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0));
                 offset += 8;
 
@@ -240,67 +254,85 @@ library Verify {
         }
 
         // length of version is always 5, so ignore it.
-        blockHeader.version = hexEncodedData.slice(offset + 8, 5);
+        blockHeader.version = hexEncodedData.slice(offset + strLength, 5);
     }
 
-    function parseFTTransaction(
-        bytes memory transaction
+    function parseFTExecution(
+        bytes memory execution
     ) internal pure returns (IEVMTreasury.FungibleTokenTransfer memory fungibleTokenTransfer) {
-        uint256 offset = 33;
+        uint64 offset;
 
-        fungibleTokenTransfer.timestamp = int64(
-            Utils.reverse64(transaction.slice(offset, 8).toUint64(0))
-        );
-        offset += 8;
-        offset += 25;
+        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strLength).toUint64(0));
+        offset += strLength;
 
-        uint64 lenOfChain = Utils.reverse64(transaction.slice(offset, 8).toUint64(0));
-        offset += 8;
-
-        fungibleTokenTransfer.chain = transaction.slice(offset, lenOfChain);
+        fungibleTokenTransfer.chain = execution.slice(offset, lenOfChain);
         offset += lenOfChain;
 
-        fungibleTokenTransfer.tokenAddress = transaction.slice(offset + 8, 20).toAddress(0);
-        offset += 28;
+        fungibleTokenTransfer.contractSequence = Utils.reverse128(
+            execution.slice(offset, uint128Length).toUint128(0)
+        );
+        offset += uint128Length;
 
-        fungibleTokenTransfer.amount = Utils.reverse128(transaction.slice(offset, 16).toUint128(0));
-        offset += 16;
+        // Skip decoding enum since we already know the type of execution
+        offset += 4;
 
-        fungibleTokenTransfer.receiverAddress = transaction.slice(offset + 8, 20).toAddress(0);
+        // Skip decoding length since it's always 20 bytes
+        offset += strLength;
+        fungibleTokenTransfer.tokenAddress = execution.slice(offset, addressLength).toAddress(0);
+        offset += addressLength;
+
+        fungibleTokenTransfer.amount = Utils.reverse128(
+            execution.slice(offset, uint128Length).toUint128(0)
+        );
+        offset += uint128Length;
+
+        // Skip decoding length since it's always 20 bytes
+        offset += strLength;
+        fungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(0);
     }
 
-    function parseNFTTransaction(
-        bytes memory transaction
+    function parseNFTExecution(
+        bytes memory execution
     )
         internal
         pure
         returns (IEVMTreasury.NonFungibleTokenTransfer memory nonFungibleTokenTransfer)
     {
-        uint256 offset = 33;
+        uint64 offset;
 
-        nonFungibleTokenTransfer.timestamp = int64(
-            Utils.reverse64(transaction.slice(offset, 8).toUint64(0))
-        );
-        offset += 8;
-        offset += 25;
+        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strLength).toUint64(0));
+        offset += strLength;
 
-        uint64 lenOfChain = Utils.reverse64(transaction.slice(offset, 8).toUint64(0));
-        offset += 8;
-
-        nonFungibleTokenTransfer.chain = transaction.slice(offset, lenOfChain);
+        nonFungibleTokenTransfer.chain = execution.slice(offset, lenOfChain);
         offset += lenOfChain;
 
-        nonFungibleTokenTransfer.collectionAddress = transaction.slice(offset + 8, 20).toAddress(0);
-        offset += 28;
+        nonFungibleTokenTransfer.contractSequence = Utils.reverse128(
+            execution.slice(offset, uint128Length).toUint128(0)
+        );
+        offset += uint128Length;
 
-        uint64 lenOfTokenId = Utils.reverse64(transaction.slice(offset, 8).toUint64(0));
-        offset += 8;
+        // Skip decoding enum since we already know the type of execution
+        offset += 4;
+
+        // Skip decoding length since it's always 20 bytes
+        offset += strLength;
+        nonFungibleTokenTransfer.collectionAddress = execution
+            .slice(offset, addressLength)
+            .toAddress(0);
+        offset += addressLength;
+
+        uint64 lenOfTokenId = Utils.reverse64(execution.slice(offset, strLength).toUint64(0));
+        offset += strLength;
 
         nonFungibleTokenTransfer.tokenId = uint128(
-            Utils.str2num(Utils.bytesToString(transaction.slice(offset, lenOfTokenId)))
+            Utils.str2num(Utils.bytesToString(execution.slice(offset, lenOfTokenId)))
         );
         offset += lenOfTokenId;
 
-        nonFungibleTokenTransfer.receiverAddress = transaction.slice(offset + 8, 20).toAddress(0);
+        // Skip decoding length since it's always 20 bytes
+        offset += strLength;
+        nonFungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(
+            0
+        );
     }
 }

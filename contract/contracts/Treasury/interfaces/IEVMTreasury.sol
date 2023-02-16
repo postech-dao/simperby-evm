@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 interface IEVMTreasury {
     struct FungibleTokenTransfer {
-        int64 timestamp;
         uint128 contractSequence;
         uint128 amount;
         bytes chain;
@@ -12,7 +11,6 @@ interface IEVMTreasury {
     }
 
     struct NonFungibleTokenTransfer {
-        int64 timestamp;
         uint128 contractSequence;
         uint128 tokenId;
         bytes chain;
@@ -29,6 +27,7 @@ interface IEVMTreasury {
 
     function execute(
         bytes memory transaction,
+        bytes memory executionHash,
         uint64 blockHeight,
         bytes memory merkleProof
     ) external;
