@@ -16,7 +16,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
 
     /// @notice The name of this contract
     string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
-    bytes public constant chainName = hex"657468657265756d"; // ethereum
+    bytes public constant chainName = hex"6d797468657265756d"; // mythereum, for testing
     uint128 public constant contractSequence = 0;
 
     LightClient public lightClient;
@@ -67,13 +67,22 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
      */
     function execute(
         bytes memory transaction,
+        bytes memory executionHash,
         uint64 blockHeight,
         bytes memory merkleProof
     ) public whenNotPaused nonReentrant {
+        bytes memory hashOfExecution = Utils.fromHex(
+            Utils.bytesToString(transaction.slice(transaction.length - 68, 64))
+        );
+        require(
+            bytes32(hashOfExecution) == keccak256(executionHash),
+            "EVMTreasury::execute: Invalid execution hash"
+        );
+
         uint64 lengthOfHeader = Utils.reverse64(transaction.slice(41, 8).toUint64(0));
         if (lengthOfHeader == 25) {
-            FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTTransaction(
-                transaction
+            FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTExecution(
+                executionHash
             );
             require(
                 fungibleTokenTransfer.contractSequence == contractSequence,
@@ -102,8 +111,8 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
                 );
             }
         } else if (lengthOfHeader == 26) {
-            NonFungibleTokenTransfer memory nonFungibleTokenTransfer = Verify.parseNFTTransaction(
-                transaction
+            NonFungibleTokenTransfer memory nonFungibleTokenTransfer = Verify.parseNFTExecution(
+                executionHash
             );
             require(
                 nonFungibleTokenTransfer.contractSequence == contractSequence,

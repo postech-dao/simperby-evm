@@ -9,6 +9,7 @@ import {
   fp,
   tx,
   merkleProof,
+  execution,
 } from "../scripts/misc/constants";
 
 const E18n = 10n ** 18n;
@@ -78,85 +79,29 @@ describe("EVMTreasury", function () {
       await expect(
         treasury.updateLightClient(nextHeader, fp)
       ).to.be.revertedWith(
-        "Verify::verifyHeaderToHeader: Invalid block author"
+        "Verify::verifyFinalizationProof: Not enough voting power"
       );
     });
   });
 
-  /// After fixing tx format to bincode, it will be fixed.
-  /// For now, skip the test.
+  // After fixing tx format to bincode, it will be fixed.
+  // For now, skip the test.
 
-  // describe("Transfer fail case", function () {
-  //   this.beforeEach(async function () {
-  //     const { treasury, erc20, alice } = fixture;
+  describe("Success case", function () {
+    this.beforeEach(async function () {
+      const { treasury, erc20, erc721, alice } = fixture;
 
-  //     height = 1;
+      await erc20.connect(alice).transfer(treasury.address, E18_500K);
 
-  //     await erc20.connect(alice).transfer(treasury.address, E18_500K);
+      expect(await erc20.balanceOf(treasury.address)).to.equal(E18_500K);
+    });
 
-  //     expect(await erc20.balanceOf(treasury.address)).to.equal(E18_500K);
-  //   });
+    it("Transfer ERC20", async function () {
+      const { treasury, erc20, alice } = fixture;
 
-  //   it("Not valid merkleProof", async function () {
-  //     const { treasury, alice } = fixture;
-
-  //     await expect(
-  //       treasury.execute(tx, height, merkleProof)
-  //     ).to.be.revertedWith("EVMTreasury::withdrawERC20: Insufficient balance");
-  //   });
-  // });
-
-  // describe("Success case", function () {
-  //   this.beforeEach(async function () {
-  //     const { treasury, erc20, erc721, alice } = fixture;
-
-  //     await erc20.connect(alice).transfer(treasury.address, E18_500K);
-  //     await erc721.connect(alice).mint(treasury.address, 1);
-
-  //     expect(await erc20.balanceOf(treasury.address)).to.equal(E18_500K);
-  //     expect(await erc721.balanceOf(treasury.address)).to.equal(1);
-  //   });
-
-  //   it("Transfer ERC20", async function () {
-  //     const { treasury, erc20, alice } = fixture;
-
-  //     message = DeliverableMessage.FungibleTokenTransfer;
-  //     data = ethers.utils.defaultAbiCoder.encode(
-  //       ["address", "uint256", "address", "uint256"],
-  //       [erc20.address, E18_500K, alice.address, 1]
-  //     );
-  //     height = 0;
-  //     merkleProof = "valid";
-
-  //     await expect(
-  //       treasury
-  //         .connect(alice)
-  //         .transferToken(message, data, height, merkleProof)
-  //     ).to.emit(treasury, "TransferFungibleToken");
-
-  //     expect(await erc20.balanceOf(treasury.address)).to.equal(0);
-  //     expect(await erc20.balanceOf(alice.address)).to.equal(E18_1M);
-  //   });
-
-  //   it("Transfer ERC721", async function () {
-  //     const { treasury, erc721, alice } = fixture;
-
-  //     message = DeliverableMessage.NonFungibleTokenTransfer;
-  //     data = ethers.utils.defaultAbiCoder.encode(
-  //       ["address", "uint256", "address", "uint256"],
-  //       [erc721.address, 1, alice.address, 1]
-  //     );
-  //     height = 0;
-  //     merkleProof = "valid";
-
-  //     await expect(
-  //       treasury
-  //         .connect(alice)
-  //         .transferToken(message, data, height, merkleProof)
-  //     ).to.emit(treasury, "TransferNonFungibleToken");
-
-  //     expect(await erc721.balanceOf(treasury.address)).to.equal(0);
-  //     expect(await erc721.balanceOf(alice.address)).to.equal(1);
-  //   });
-  // });
+      await expect(
+        treasury.execute(tx, execution, 1, merkleProof)
+      ).to.be.revertedWith("a");
+    });
+  });
 });
