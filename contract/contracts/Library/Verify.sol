@@ -12,15 +12,15 @@ library Verify {
     using BytesLib for bytes;
 
     /**
-    * @dev Bytes length for decoding data.
-    * @notice Refer to https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md for details.
-    * @notice We need to remove first 1 bytes prefix from {pkLength}.
-    * @notice Address comes from hex string, which is 40 bytes.
-    */
-    uint16 constant sigLength = 65; 
-    uint16 constant pkLength = 65; 
+     * @dev Bytes length for decoding data.
+     * @notice Refer to https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md for details.
+     * @notice We need to remove first 1 bytes prefix from {pkLength}.
+     * @notice Address comes from hex string, which is 40 bytes.
+     */
+    uint16 constant sigLength = 65;
+    uint16 constant pkLength = 65;
     uint16 constant hashLength = 32;
-    uint16 constant addressLength = 40; 
+    uint16 constant addressLength = 40;
     uint16 constant uint128Length = 16;
     uint16 constant strUint64Length = 8;
     uint16 constant enumLength = 4;
@@ -119,7 +119,7 @@ library Verify {
             "Verify::verifyFinalizationProof: Not enough voting power"
         );
     }
-    
+
     function verifyTransactionCommitment(
         bytes memory transaction,
         bytes32[] memory commitRoots,
@@ -238,7 +238,9 @@ library Verify {
         );
         offset += strUint64Length;
 
-        blockHeader.timestamp = int64(Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0)));
+        blockHeader.timestamp = int64(
+            Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0))
+        );
         offset += strUint64Length;
 
         blockHeader.commitMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
@@ -260,7 +262,9 @@ library Verify {
             for (uint i = 0; i < validatorsLen; i++) {
                 validator_ = hexEncodedData.slice(offset + 1, pkLength - 1);
                 offset += pkLength;
-                votingPower_ = Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0));
+                votingPower_ = Utils.reverse64(
+                    hexEncodedData.slice(offset, strUint64Length).toUint64(0)
+                );
                 offset += strUint64Length;
 
                 blockHeader.validators[i] = validatorSet(validator_, votingPower_);
