@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../Library/Verify.sol";
 import "../Library/BytesLib.sol";
 import "../Library/Utils.sol";
+import "../Library/Strings.sol";
 import "./interfaces/IEVMTreasury.sol";
 
 contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
@@ -70,8 +71,8 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         uint64 blockHeight,
         bytes memory merkleProof
     ) public whenNotPaused nonReentrant {
-        bytes memory hashOfExecution = Utils.fromHex(
-            Utils.bytesToString(transaction.slice(transaction.length - 68, 64))
+        bytes memory hashOfExecution = Strings.fromHex(
+            Strings.bytesToString(transaction.slice(transaction.length - 68, 64))
         );
         require(
             bytes32(hashOfExecution) == keccak256(executionHash),
