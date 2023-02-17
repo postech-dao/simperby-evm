@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../Library/Verify.sol";
 import "../Library/BytesLib.sol";
 import "../Library/Utils.sol";
@@ -79,7 +78,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
             "EVMTreasury::execute: Invalid execution hash"
         );
 
-        uint64 lengthOfHeader = Utils.reverse64(transaction.slice(41, 8).toUint64(0));
+        uint64 lengthOfHeader = Utils.reverse64(transaction.slice(73, 8).toUint64(0));
         if (lengthOfHeader == 25) {
             FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTExecution(
                 executionHash
@@ -179,7 +178,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
 
         Verify.verifyHeaderToHeader(lightClient.lastHeader, header);
-        Verify.verifyFinalizationProof(_blockHeader, Utils.hashHeader(header), _proof);
+        Verify.verifyFinalizationProof(_blockHeader, keccak256(header), _proof);
 
         lightClient.lastHeader = header;
         lightClient.repositoryRoots.push(_blockHeader.repositoryMerkleRoot);

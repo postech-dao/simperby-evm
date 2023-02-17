@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @dev Functions for utilities.
+ * @dev Functions for utils.
  */
 library Utils {
     function toPrefixedHash(bytes32 hash) internal pure returns (bytes32) {
@@ -13,10 +13,6 @@ library Utils {
         bytes32 _hash = keccak256(pk);
 
         return address(uint160(uint256(_hash)));
-    }
-
-    function hashHeader(bytes memory header) internal pure returns (bytes32) {
-        return keccak256(header);
     }
 
     function bytesToString(bytes memory byteCode) internal pure returns (string memory stringData) {
@@ -93,6 +89,16 @@ library Utils {
             r[i] = bytes1(fromHexChar(uint8(ss[2 * i])) * 16 + fromHexChar(uint8(ss[2 * i + 1])));
         }
         return r;
+    }
+
+    function reverse32(uint32 input) internal pure returns (uint32 v) {
+        v = input;
+
+        // swap bytes
+        v = ((v & 0xFF00FF00) >> 8) | ((v & 0x00FF00FF) << 8);
+
+        // swap 2-byte long pairs
+        v = (v >> 16) | (v << 16);
     }
 
     function reverse64(uint64 input) internal pure returns (uint64 v) {
