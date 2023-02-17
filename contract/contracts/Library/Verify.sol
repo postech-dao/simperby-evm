@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./BytesLib.sol";
 import "./Utils.sol";
+import "./Strings.sol";
 import "../Treasury/interfaces/IEVMTreasury.sol";
 
 /**
@@ -108,7 +109,7 @@ library Verify {
         uint k = 0;
         for (uint j = 0; j < finalizationProof.length; j++) {
             (bytes32 r, bytes32 s, uint8 v) = splitSignature(finalizationProof[j].signature);
-            if (Utils.pubToAddress(finalizationProof[j].signer) == ecrecover(headerHash, v, r, s)) {
+            if (Utils.pkToAddress(finalizationProof[j].signer) == ecrecover(headerHash, v, r, s)) {
                 _votedVotingPower += header.validators[k].votingPower;
             }
             k++;
@@ -296,8 +297,8 @@ library Verify {
 
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
-        fungibleTokenTransfer.tokenAddress = Utils
-            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+        fungibleTokenTransfer.tokenAddress = Strings
+            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
             .toAddress(0);
         offset += addressLength;
 
@@ -308,8 +309,8 @@ library Verify {
 
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
-        fungibleTokenTransfer.receiverAddress = Utils
-            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+        fungibleTokenTransfer.receiverAddress = Strings
+            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
             .toAddress(0);
     }
 
@@ -338,8 +339,8 @@ library Verify {
 
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
-        nonFungibleTokenTransfer.collectionAddress = Utils
-            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+        nonFungibleTokenTransfer.collectionAddress = Strings
+            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
             .toAddress(0);
         offset += addressLength;
 
@@ -347,14 +348,14 @@ library Verify {
         offset += strUint64Length;
 
         nonFungibleTokenTransfer.tokenId = uint128(
-            Utils.str2num(Utils.bytesToString(execution.slice(offset, lenOfTokenId)))
+            Strings.stringToUint(Strings.bytesToString(execution.slice(offset, lenOfTokenId)))
         );
         offset += lenOfTokenId;
 
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
-        nonFungibleTokenTransfer.receiverAddress = Utils
-            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+        nonFungibleTokenTransfer.receiverAddress = Strings
+            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
             .toAddress(0);
     }
 }
