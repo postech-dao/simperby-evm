@@ -94,12 +94,15 @@ describe("EVMTreasury", function () {
         "UpdateLightClient"
       );
 
-      // Since its transaction, execution, merkleProof are made in Rust,
-      // we can't set token address. It will fail with message: "unexpected amount of data"
       await expect(treasury.execute(tx, execution, 1, merkleProof)).to.emit(
         treasury,
         "TransferFungibleToken"
       );
+
+      const afterBalance = await erc20.balanceOf(alice.address);
+
+      // Transfer 100 tokens from treasury to alice
+      expect(afterBalance).to.equal(500000000000000000000100n);
     });
   });
 });
