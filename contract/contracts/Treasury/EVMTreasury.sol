@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../Library/Verify.sol";
 import "../Library/BytesLib.sol";
@@ -11,7 +11,7 @@ import "../Library/Utils.sol";
 import "../Library/Strings.sol";
 import "./interfaces/IEVMTreasury.sol";
 
-contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
+contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
     using BytesLib for bytes;
 
     /// @notice The name of this contract
@@ -70,7 +70,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         bytes memory executionHash,
         uint64 blockHeight,
         bytes memory merkleProof
-    ) public whenNotPaused nonReentrant {
+    ) public nonReentrant {
         bytes memory hashOfExecution = Strings.fromHex(
             Strings.bytesToString(transaction.slice(transaction.length - 68, 64))
         );
@@ -163,7 +163,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
             IERC721(token).ownerOf(tokenId) == address(this),
             "EVMTreasury::withdrawERC721: Insufficient balance"
         );
-        IERC721(token).transferFrom(address(this), to, tokenId);
+        IERC721(token).safeTransferFrom(address(this), to, tokenId);
 
         emit TransferNonFungibleToken(token, tokenId, to, 0);
     }
@@ -174,7 +174,7 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
      * @param header The header to be updated.
      * @param proof The finalization proof of the header.
      */
-    function updateLightClient(bytes memory header, bytes calldata proof) public whenNotPaused {
+    function updateLightClient(bytes memory header, bytes calldata proof) public {
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
         Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
 
@@ -193,5 +193,14 @@ contract EVMTreasury is Pausable, ReentrancyGuard, IEVMTreasury {
         );
 
         emit UpdateLightClient(lightClient.lastHeader);
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) public pure override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
