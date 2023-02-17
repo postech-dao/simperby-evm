@@ -64,30 +64,20 @@ describe("EVMTreasury", function () {
     });
   });
 
-  describe("Update light client - fail", function () {
+  describe("Update light client - success", function () {
     it("Success case", async function () {
       const { treasury, erc20, alice, bob, charlie } = fixture;
 
-      // await expect(treasury.updateLightClient(nextHeader, fp)).to.emit(
-      //   treasury,
-      //   "UpdateLightClient"
-      // );
-
-      // expect((await treasury.lightClient()).lastHeader).to.equal(nextHeader);
-
-      // After change to uncompressed public key type, it will be fixed.
-      await expect(
-        treasury.updateLightClient(nextHeader, fp)
-      ).to.be.revertedWith(
-        "Verify::verifyFinalizationProof: Not enough voting power"
+      await expect(treasury.updateLightClient(nextHeader, fp)).to.emit(
+        treasury,
+        "UpdateLightClient"
       );
+
+      expect((await treasury.lightClient()).lastHeader).to.equal(nextHeader);
     });
   });
 
-  // After fixing tx format to bincode, it will be fixed.
-  // For now, skip the test.
-
-  describe("Success case", function () {
+  describe("Execution - success", function () {
     this.beforeEach(async function () {
       const { treasury, erc20, erc721, alice } = fixture;
 
@@ -99,9 +89,17 @@ describe("EVMTreasury", function () {
     it("Transfer ERC20", async function () {
       const { treasury, erc20, alice } = fixture;
 
-      await expect(
-        treasury.execute(tx, execution, 1, merkleProof)
-      ).to.be.revertedWith("a");
+      await expect(treasury.updateLightClient(nextHeader, fp)).to.emit(
+        treasury,
+        "UpdateLightClient"
+      );
+
+      // Since its transaction, execution, merkleProof are made in Rust,
+      // we can't set token address. It will fail with message: "unexpected amount of data"
+      await expect(treasury.execute(tx, execution, 1, merkleProof)).to.emit(
+        treasury,
+        "TransferFungibleToken"
+      );
     });
   });
 });

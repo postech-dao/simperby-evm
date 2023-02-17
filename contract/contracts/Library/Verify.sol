@@ -7,17 +7,23 @@ import "../Treasury/interfaces/IEVMTreasury.sol";
 
 /**
  * @dev Functions to verify signature & decode bytes
- * @notice For public key recovery, we need to change to uncompressed format. (65 bytes)
  */
 library Verify {
     using BytesLib for bytes;
 
-    uint16 constant sigLength = 65;
-    uint16 constant pkLength = 33; // Should be fixed to 65 bytes
+    /**
+    * @dev Bytes length for decoding data.
+    * @notice Refer to https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md for details.
+    * @notice We need to remove first 1 bytes prefix from {pkLength}.
+    * @notice Address comes from hex string, which is 40 bytes.
+    */
+    uint16 constant sigLength = 65; 
+    uint16 constant pkLength = 65; 
     uint16 constant hashLength = 32;
-    uint16 constant addressLength = 20;
+    uint16 constant addressLength = 40; 
     uint16 constant uint128Length = 16;
-    uint16 constant strLength = 8;
+    uint16 constant strUint64Length = 8;
+    uint16 constant enumLength = 4;
 
     struct TypedSignature {
         bytes signature;
@@ -42,6 +48,11 @@ library Verify {
     }
 
     /* ========== VERIFY FUNCTIONS ========== */
+    /**
+     * @dev Verifies new header is valid.
+     * @param prevHeader Bytes of previous header (Current lastHeader).
+     * @param header New header from relayer (Candidate for new lastHeader).
+     */
     function verifyHeaderToHeader(bytes memory prevHeader, bytes memory header) internal pure {
         BlockHeader memory _prevBlockHeader = parseHeader(prevHeader);
         BlockHeader memory _blockHeader = parseHeader(header);
@@ -50,11 +61,11 @@ library Verify {
             "Verify::verifyHeaderToHeader: Invalid block height"
         );
         require(
-            _blockHeader.previousHash == Utils.hashHeader(prevHeader),
+            _blockHeader.previousHash == keccak256(prevHeader),
             "Verify::verifyHeaderToHeader: Invalid previous hash"
         );
         require(
-            _blockHeader.timestamp > _prevBlockHeader.timestamp,
+            _blockHeader.timestamp >= _prevBlockHeader.timestamp,
             "Verify::verifyHeaderToHeader: Invalid block timestamp"
         );
 
@@ -78,6 +89,12 @@ library Verify {
         );
     }
 
+    /**
+     * @dev Verifies finalization proof with TypedSignature.
+     * @param header Decoded header.
+     * @param headerHash Keccak256 hashed header.
+     * @param finalizationProof TypedSignatures of validators for header.
+     */
     function verifyFinalizationProof(
         BlockHeader memory header,
         bytes32 headerHash,
@@ -91,10 +108,7 @@ library Verify {
         uint k = 0;
         for (uint j = 0; j < finalizationProof.length; j++) {
             (bytes32 r, bytes32 s, uint8 v) = splitSignature(finalizationProof[j].signature);
-            if (
-                Utils.pubToAddress(finalizationProof[j].signer) ==
-                ecrecover(Utils.toPrefixedHash(headerHash), v, r, s)
-            ) {
+            if (Utils.pubToAddress(finalizationProof[j].signer) == ecrecover(headerHash, v, r, s)) {
                 _votedVotingPower += header.validators[k].votingPower;
             }
             k++;
@@ -105,7 +119,7 @@ library Verify {
             "Verify::verifyFinalizationProof: Not enough voting power"
         );
     }
-
+    
     function verifyTransactionCommitment(
         bytes memory transaction,
         bytes32[] memory commitRoots,
@@ -122,19 +136,19 @@ library Verify {
         bytes32 calculatedRoot = keccak256(transaction);
 
         uint256 offset = 0;
-        uint64 lenOfProof = Utils.reverse64(merkleProof.slice(offset, strLength).toUint64(0));
-        offset += strLength;
+        uint64 lenOfProof = Utils.reverse64(merkleProof.slice(offset, strUint64Length).toUint64(0));
+        offset += strUint64Length;
 
         for (uint i = 0; i < lenOfProof; i++) {
-            uint64 enumOrder = Utils.reverse64(merkleProof.slice(offset, 4).toUint64(0));
-            offset += 4;
+            uint32 enumOrder = Utils.reverse32(merkleProof.slice(offset, enumLength).toUint32(0));
+            offset += enumLength;
 
-            if (enumOrder == 1) {
+            if (enumOrder == 0) {
                 // Left child
                 bytes32 leftPairHash = merkleProof.slice(offset, hashLength).toBytes32(0);
                 calculatedRoot = keccak256(abi.encodePacked(leftPairHash, calculatedRoot));
                 offset += hashLength;
-            } else if (enumOrder == 2) {
+            } else if (enumOrder == 1) {
                 // Right child
                 bytes32 rightPairHash = merkleProof.slice(offset, hashLength).toBytes32(0);
                 calculatedRoot = keccak256(abi.encodePacked(calculatedRoot, rightPairHash));
@@ -169,18 +183,18 @@ library Verify {
     function parseProof(bytes memory input) internal pure returns (TypedSignature[] memory) {
         uint64 len = Utils.reverse64(input.slice(0, 8).toUint64(0));
         require(
-            len == (input.length - 8) / 98 && (input.length - 8) % 98 == 0,
+            len == (input.length - 8) / 130 && (input.length - 8) % 130 == 0,
             "Verify::parseProof: Invalid proof length"
         );
 
         TypedSignature[] memory fp = new TypedSignature[](len);
 
-        uint256 offset = strLength;
+        uint256 offset = strUint64Length;
 
         for (uint256 i = 0; i < len; i++) {
             fp[i] = TypedSignature(
                 input.slice(offset, sigLength),
-                input.slice(offset + sigLength, pkLength)
+                input.slice(offset + sigLength + 1, pkLength - 1)
             );
             offset += (sigLength + pkLength);
         }
@@ -193,12 +207,12 @@ library Verify {
     ) internal pure returns (BlockHeader memory blockHeader) {
         uint offset = 0;
 
-        blockHeader.author = hexEncodedData.slice(offset, pkLength);
+        blockHeader.author = hexEncodedData.slice(offset + 1, pkLength - 1);
         offset += pkLength;
 
         {
-            uint64 len = Utils.reverse64(hexEncodedData.slice(offset, strLength).toUint64(0));
-            offset += strLength;
+            uint64 len = Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0));
+            offset += strUint64Length;
             blockHeader.prevBlockFinalizationProof = new TypedSignature[](len);
 
             bytes memory sig_;
@@ -208,7 +222,7 @@ library Verify {
                 for (uint i = 0; i < len; i++) {
                     sig_ = hexEncodedData.slice(offset, sigLength);
                     offset += sigLength;
-                    signer_ = hexEncodedData.slice(offset, pkLength);
+                    signer_ = hexEncodedData.slice(offset + 1, pkLength - 1);
                     offset += pkLength;
 
                     blockHeader.prevBlockFinalizationProof[i] = TypedSignature(sig_, signer_);
@@ -220,12 +234,12 @@ library Verify {
         offset += hashLength;
 
         blockHeader.blockHeight = Utils.reverse64(
-            hexEncodedData.slice(offset, strLength).toUint64(0)
+            hexEncodedData.slice(offset, strUint64Length).toUint64(0)
         );
-        offset += strLength;
+        offset += strUint64Length;
 
-        blockHeader.timestamp = int64(Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0)));
-        offset += 8;
+        blockHeader.timestamp = int64(Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0)));
+        offset += strUint64Length;
 
         blockHeader.commitMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
         offset += hashLength;
@@ -235,26 +249,26 @@ library Verify {
 
         {
             uint64 validatorsLen = Utils.reverse64(
-                hexEncodedData.slice(offset, strLength).toUint64(0)
+                hexEncodedData.slice(offset, strUint64Length).toUint64(0)
             );
-            offset += strLength;
+            offset += strUint64Length;
             blockHeader.validators = new validatorSet[](validatorsLen);
 
             bytes memory validator_;
             uint64 votingPower_;
 
             for (uint i = 0; i < validatorsLen; i++) {
-                validator_ = hexEncodedData.slice(offset, pkLength);
+                validator_ = hexEncodedData.slice(offset + 1, pkLength - 1);
                 offset += pkLength;
-                votingPower_ = Utils.reverse64(hexEncodedData.slice(offset, 8).toUint64(0));
-                offset += 8;
+                votingPower_ = Utils.reverse64(hexEncodedData.slice(offset, strUint64Length).toUint64(0));
+                offset += strUint64Length;
 
                 blockHeader.validators[i] = validatorSet(validator_, votingPower_);
             }
         }
 
         // length of version is always 5, so ignore it.
-        blockHeader.version = hexEncodedData.slice(offset + strLength, 5);
+        blockHeader.version = hexEncodedData.slice(offset + strUint64Length, 5);
     }
 
     function parseFTExecution(
@@ -262,8 +276,8 @@ library Verify {
     ) internal pure returns (IEVMTreasury.FungibleTokenTransfer memory fungibleTokenTransfer) {
         uint64 offset;
 
-        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strLength).toUint64(0));
-        offset += strLength;
+        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strUint64Length).toUint64(0));
+        offset += strUint64Length;
 
         fungibleTokenTransfer.chain = execution.slice(offset, lenOfChain);
         offset += lenOfChain;
@@ -274,11 +288,13 @@ library Verify {
         offset += uint128Length;
 
         // Skip decoding enum since we already know the type of execution
-        offset += 4;
+        offset += enumLength;
 
         // Skip decoding length since it's always 20 bytes
-        offset += strLength;
-        fungibleTokenTransfer.tokenAddress = execution.slice(offset, addressLength).toAddress(0);
+        offset += strUint64Length;
+        fungibleTokenTransfer.tokenAddress = Utils
+            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+            .toAddress(0);
         offset += addressLength;
 
         fungibleTokenTransfer.amount = Utils.reverse128(
@@ -287,8 +303,10 @@ library Verify {
         offset += uint128Length;
 
         // Skip decoding length since it's always 20 bytes
-        offset += strLength;
-        fungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(0);
+        offset += strUint64Length;
+        fungibleTokenTransfer.receiverAddress = Utils
+            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+            .toAddress(0);
     }
 
     function parseNFTExecution(
@@ -300,8 +318,8 @@ library Verify {
     {
         uint64 offset;
 
-        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strLength).toUint64(0));
-        offset += strLength;
+        uint64 lenOfChain = Utils.reverse64(execution.slice(0, strUint64Length).toUint64(0));
+        offset += strUint64Length;
 
         nonFungibleTokenTransfer.chain = execution.slice(offset, lenOfChain);
         offset += lenOfChain;
@@ -312,17 +330,17 @@ library Verify {
         offset += uint128Length;
 
         // Skip decoding enum since we already know the type of execution
-        offset += 4;
+        offset += enumLength;
 
         // Skip decoding length since it's always 20 bytes
-        offset += strLength;
-        nonFungibleTokenTransfer.collectionAddress = execution
-            .slice(offset, addressLength)
+        offset += strUint64Length;
+        nonFungibleTokenTransfer.collectionAddress = Utils
+            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
             .toAddress(0);
         offset += addressLength;
 
-        uint64 lenOfTokenId = Utils.reverse64(execution.slice(offset, strLength).toUint64(0));
-        offset += strLength;
+        uint64 lenOfTokenId = Utils.reverse64(execution.slice(offset, strUint64Length).toUint64(0));
+        offset += strUint64Length;
 
         nonFungibleTokenTransfer.tokenId = uint128(
             Utils.str2num(Utils.bytesToString(execution.slice(offset, lenOfTokenId)))
@@ -330,9 +348,9 @@ library Verify {
         offset += lenOfTokenId;
 
         // Skip decoding length since it's always 20 bytes
-        offset += strLength;
-        nonFungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(
-            0
-        );
+        offset += strUint64Length;
+        nonFungibleTokenTransfer.receiverAddress = Utils
+            .fromHex(Utils.bytesToString(execution.slice(offset, addressLength)))
+            .toAddress(0);
     }
 }
