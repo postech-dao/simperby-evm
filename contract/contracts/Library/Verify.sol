@@ -18,13 +18,13 @@ library Verify {
      * @notice We need to remove first 1 bytes prefix from {pkLength}.
      * @notice Address comes from hex string, which is 40 bytes.
      */
-    uint16 constant sigLength = 65;
-    uint16 constant pkLength = 65;
-    uint16 constant hashLength = 32;
-    uint16 constant addressLength = 40;
-    uint16 constant uint128Length = 16;
-    uint16 constant strUint64Length = 8;
-    uint16 constant enumLength = 4;
+    uint constant sigLength = 65;
+    uint constant pkLength = 65;
+    uint constant hashLength = 32;
+    uint constant addressLength = 40;
+    uint constant uint128Length = 16;
+    uint constant strUint64Length = 8;
+    uint constant enumLength = 4;
 
     struct TypedSignature {
         bytes signature;
@@ -136,7 +136,7 @@ library Verify {
         bytes32 root = commitRoots[blockHeight - heightOffset];
         bytes32 calculatedRoot = keccak256(transaction);
 
-        uint256 offset = 0;
+        uint offset = 0;
         uint64 lenOfProof = Utils.reverse64(merkleProof.slice(offset, strUint64Length).toUint64(0));
         offset += strUint64Length;
 
@@ -190,7 +190,7 @@ library Verify {
 
         TypedSignature[] memory fp = new TypedSignature[](len);
 
-        uint256 offset = strUint64Length;
+        uint offset = strUint64Length;
 
         for (uint256 i = 0; i < len; i++) {
             fp[i] = TypedSignature(
@@ -279,7 +279,7 @@ library Verify {
     function parseFTExecution(
         bytes memory execution
     ) internal pure returns (IEVMTreasury.FungibleTokenTransfer memory fungibleTokenTransfer) {
-        uint64 offset;
+        uint offset;
 
         uint64 lenOfChain = Utils.reverse64(execution.slice(0, strUint64Length).toUint64(0));
         offset += strUint64Length;
@@ -321,7 +321,7 @@ library Verify {
         pure
         returns (IEVMTreasury.NonFungibleTokenTransfer memory nonFungibleTokenTransfer)
     {
-        uint64 offset;
+        uint offset;
 
         uint64 lenOfChain = Utils.reverse64(execution.slice(0, strUint64Length).toUint64(0));
         offset += strUint64Length;
