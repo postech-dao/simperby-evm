@@ -38,7 +38,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
         uint256 contractSequence
     );
 
-    event UpdateLightClient(bytes lastHeader);
+    event UpdateLightClient(bytes indexed lastHeader);
 
     /* ========== CONSTRUCTOR ========== */
     constructor(bytes memory initialHeader) {
@@ -143,7 +143,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
 
     function withdrawETH(address to, uint256 amount) internal {
         require(address(this).balance >= amount, "EVMTreasury::withdrawETH: Insufficient balance");
-        emit TransferFungibleToken(address(0), amount, to, 0);
+        emit TransferFungibleToken(address(0), amount, to, contractSequence);
 
         payable(to).transfer(amount);
     }
@@ -155,7 +155,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
         );
         IERC20(token).transfer(to, amount);
 
-        emit TransferFungibleToken(token, amount, to, 0);
+        emit TransferFungibleToken(token, amount, to, contractSequence);
     }
 
     function withdrawERC721(address token, address to, uint256 tokenId) internal {
@@ -165,7 +165,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
         );
         IERC721(token).safeTransferFrom(address(this), to, tokenId);
 
-        emit TransferNonFungibleToken(token, tokenId, to, 0);
+        emit TransferNonFungibleToken(token, tokenId, to, contractSequence);
     }
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
