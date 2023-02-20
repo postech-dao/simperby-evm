@@ -31,7 +31,7 @@ library Verify {
         bytes signer;
     }
 
-    struct validatorSet {
+    struct ValidatorSet {
         bytes validator;
         uint64 votingPower;
     }
@@ -43,20 +43,22 @@ library Verify {
         uint64 blockHeight;
         int64 timestamp;
         bytes32 commitMerkleRoot;
-        bytes32 repositoryMerkleRoot;
-        validatorSet[] validators;
+        ValidatorSet[] validators;
         bytes version;
     }
 
     /* ========== VERIFY FUNCTIONS ========== */
     /**
      * @dev Verifies new header is valid.
-     * @param prevHeader Bytes of previous header (Current lastHeader).
-     * @param header New header from relayer (Candidate for new lastHeader).
+     * @param prevHeader Bytes of a previous header (Current lastHeader).
+     * @param _prevBlockHeader Decoded BlockHeader of a previous header.
+     * @param _blockHeader Decoded BlockHeader of a new BlockHeader.
      */
-    function verifyHeaderToHeader(bytes memory prevHeader, bytes memory header) internal pure {
-        BlockHeader memory _prevBlockHeader = parseHeader(prevHeader);
-        BlockHeader memory _blockHeader = parseHeader(header);
+    function verifyHeaderToHeader(
+        bytes memory prevHeader,
+        BlockHeader memory _prevBlockHeader,
+        BlockHeader memory _blockHeader
+    ) internal pure {
         require(
             _prevBlockHeader.blockHeight + 1 == _blockHeader.blockHeight,
             "Verify::verifyHeaderToHeader: Invalid block height"
@@ -110,6 +112,10 @@ library Verify {
         for (uint j = 0; j < finalizationProof.length; j++) {
             (bytes32 r, bytes32 s, uint8 v) = splitSignature(finalizationProof[j].signature);
             if (Utils.pkToAddress(finalizationProof[j].signer) == ecrecover(headerHash, v, r, s)) {
+                require(
+                    keccak256(finalizationProof[j].signer) ==
+                        keccak256(header.validators[k].validator)
+                );
                 _votedVotingPower += header.validators[k].votingPower;
             }
             k++;
@@ -247,7 +253,7 @@ library Verify {
         blockHeader.commitMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
         offset += hashLength;
 
-        blockHeader.repositoryMerkleRoot = hexEncodedData.slice(offset, hashLength).toBytes32(0);
+        // Skip repository root (32 bytes)
         offset += hashLength;
 
         {
@@ -255,7 +261,7 @@ library Verify {
                 hexEncodedData.slice(offset, strUint64Length).toUint64(0)
             );
             offset += strUint64Length;
-            blockHeader.validators = new validatorSet[](validatorsLen);
+            blockHeader.validators = new ValidatorSet[](validatorsLen);
 
             bytes memory validator_;
             uint64 votingPower_;
@@ -268,7 +274,7 @@ library Verify {
                 );
                 offset += strUint64Length;
 
-                blockHeader.validators[i] = validatorSet(validator_, votingPower_);
+                blockHeader.validators[i] = ValidatorSet(validator_, votingPower_);
             }
         }
 
@@ -298,7 +304,7 @@ library Verify {
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
         fungibleTokenTransfer.tokenAddress = Strings
-            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
+            .fromHex(string(execution.slice(offset, addressLength)))
             .toAddress(0);
         offset += addressLength;
 
@@ -310,7 +316,7 @@ library Verify {
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
         fungibleTokenTransfer.receiverAddress = Strings
-            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
+            .fromHex(string(execution.slice(offset, addressLength)))
             .toAddress(0);
     }
 
@@ -340,7 +346,7 @@ library Verify {
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
         nonFungibleTokenTransfer.collectionAddress = Strings
-            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
+            .fromHex(string(execution.slice(offset, addressLength)))
             .toAddress(0);
         offset += addressLength;
 
@@ -348,14 +354,14 @@ library Verify {
         offset += strUint64Length;
 
         nonFungibleTokenTransfer.tokenId = uint128(
-            Strings.stringToUint(Strings.bytesToString(execution.slice(offset, lenOfTokenId)))
+            Strings.stringToUint(string(execution.slice(offset, lenOfTokenId)))
         );
         offset += lenOfTokenId;
 
         // Skip decoding length since it's always 20 bytes
         offset += strUint64Length;
         nonFungibleTokenTransfer.receiverAddress = Strings
-            .fromHex(Strings.bytesToString(execution.slice(offset, addressLength)))
+            .fromHex(string(execution.slice(offset, addressLength)))
             .toAddress(0);
     }
 }

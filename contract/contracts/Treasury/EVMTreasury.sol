@@ -21,41 +21,19 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
 
     LightClient public lightClient;
 
-    mapping(uint256 => LightClient) public lightClients;
-    /* ========== EVENTS ========== */
-
-    event TransferFungibleToken(
-        address indexed tokenAddress,
-        uint256 amount,
-        address indexed receiverAddress,
-        uint256 contractSequence
-    );
-
-    event TransferNonFungibleToken(
-        address indexed tokenAddress,
-        uint256 tokenIndex,
-        address indexed receiverAddress,
-        uint256 contractSequence
-    );
-
-    event UpdateLightClient(bytes indexed lastHeader);
-
     /* ========== CONSTRUCTOR ========== */
     constructor(bytes memory initialHeader) {
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(initialHeader);
 
-        bytes32[] memory repositoryRoots = new bytes32[](1);
         bytes32[] memory commitRoots = new bytes32[](1);
-        repositoryRoots[0] = _blockHeader.repositoryMerkleRoot;
         commitRoots[0] = _blockHeader.commitMerkleRoot;
 
-        lightClient = LightClient(
-            _blockHeader.blockHeight,
-            initialHeader,
-            repositoryRoots,
-            commitRoots
-        );
-        lightClients[0] = lightClient;
+        lightClient = LightClient(_blockHeader.blockHeight, initialHeader, commitRoots);
+    }
+
+    /* ========== VIEW FUCNTIONS ========== */
+    function viewCommitRoots() public view returns (bytes32[] memory) {
+        return lightClient.commitRoots;
     }
 
     /* ========== TREASURY FUNCTIONS ========== */
@@ -72,7 +50,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
         bytes memory merkleProof
     ) public nonReentrant {
         bytes memory hashOfExecution = Strings.fromHex(
-            Strings.bytesToString(transaction.slice(transaction.length - 68, 64))
+            string(transaction.slice(transaction.length - 68, 64))
         );
         require(
             bytes32(hashOfExecution) == keccak256(executionHash),
@@ -170,29 +148,22 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
 
     /* ========== LIGHTCLIENT FUNCTIONS ========== */
     /**
-     * @dev Functions to update light client.
+     * @dev Function to update light client.
      * @param header The header to be updated.
      * @param proof The finalization proof of the header.
      */
     function updateLightClient(bytes memory header, bytes calldata proof) public {
+        Verify.BlockHeader memory _prevBlockHeader = Verify.parseHeader(lightClient.lastHeader);
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
         Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
 
-        Verify.verifyHeaderToHeader(lightClient.lastHeader, header);
+        Verify.verifyHeaderToHeader(lightClient.lastHeader, _prevBlockHeader, _blockHeader);
         Verify.verifyFinalizationProof(_blockHeader, keccak256(header), _proof);
 
         lightClient.lastHeader = header;
-        lightClient.repositoryRoots.push(_blockHeader.repositoryMerkleRoot);
         lightClient.commitRoots.push(_blockHeader.commitMerkleRoot);
 
-        lightClients[_blockHeader.blockHeight] = LightClient(
-            lightClient.heightOffset,
-            header,
-            lightClient.repositoryRoots,
-            lightClient.commitRoots
-        );
-
-        emit UpdateLightClient(lightClient.lastHeader);
+        emit UpdateLightClient(_blockHeader.blockHeight, lightClient.lastHeader);
     }
 
     function onERC721Received(
