@@ -49,6 +49,12 @@ interface IEVMTreasury {
 
     function updateLightClient(bytes memory header, bytes memory proof) external;
 
+    function name() external view returns (string memory);
+
+    function chainName() external view returns (bytes memory);
+
+    function contractSequence() external view returns (uint128);
+
     function lightClient() external view returns (uint64 heightOffset, bytes memory lastHeader);
 
     function viewCommitRoots() external view returns (bytes32[] memory commitRoots);
