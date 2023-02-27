@@ -16,12 +16,11 @@ library Verify {
      * @dev Bytes length for decoding data.
      * @notice Refer to https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md for details.
      * @notice We need to remove first 1 bytes prefix from {pkLength}.
-     * @notice Address comes from hex string, which is 40 bytes.
      */
     uint constant sigLength = 65;
     uint constant pkLength = 65;
     uint constant hashLength = 32;
-    uint constant addressLength = 40;
+    uint constant addressLength = 20;
     uint constant uint128Length = 16;
     uint constant strUint64Length = 8;
     uint constant enumLength = 4;
@@ -222,17 +221,17 @@ library Verify {
             offset += strUint64Length;
             blockHeader.prevBlockFinalizationProof = new TypedSignature[](len);
 
-            bytes memory sig_;
-            bytes memory signer_;
+            bytes memory _sig;
+            bytes memory _signer;
 
             if (len != 0) {
                 for (uint i = 0; i < len; i++) {
-                    sig_ = hexEncodedData.slice(offset, sigLength);
+                    _sig = hexEncodedData.slice(offset, sigLength);
                     offset += sigLength;
-                    signer_ = hexEncodedData.slice(offset + 1, pkLength - 1);
+                    _signer = hexEncodedData.slice(offset + 1, pkLength - 1);
                     offset += pkLength;
 
-                    blockHeader.prevBlockFinalizationProof[i] = TypedSignature(sig_, signer_);
+                    blockHeader.prevBlockFinalizationProof[i] = TypedSignature(_sig, _signer);
                 }
             }
         }
@@ -263,18 +262,18 @@ library Verify {
             offset += strUint64Length;
             blockHeader.validators = new ValidatorSet[](validatorsLen);
 
-            bytes memory validator_;
-            uint64 votingPower_;
+            bytes memory _validator;
+            uint64 _votingPower;
 
             for (uint i = 0; i < validatorsLen; i++) {
-                validator_ = hexEncodedData.slice(offset + 1, pkLength - 1);
+                _validator = hexEncodedData.slice(offset + 1, pkLength - 1);
                 offset += pkLength;
-                votingPower_ = Utils.reverse64(
+                _votingPower = Utils.reverse64(
                     hexEncodedData.slice(offset, strUint64Length).toUint64(0)
                 );
                 offset += strUint64Length;
 
-                blockHeader.validators[i] = ValidatorSet(validator_, votingPower_);
+                blockHeader.validators[i] = ValidatorSet(_validator, _votingPower);
             }
         }
 
@@ -301,11 +300,7 @@ library Verify {
         // Skip decoding enum since we already know the type of execution
         offset += enumLength;
 
-        // Skip decoding length since it's always 20 bytes
-        offset += strUint64Length;
-        fungibleTokenTransfer.tokenAddress = Strings
-            .fromHex(string(execution.slice(offset, addressLength)))
-            .toAddress(0);
+        fungibleTokenTransfer.tokenAddress = execution.slice(offset, addressLength).toAddress(0);
         offset += addressLength;
 
         fungibleTokenTransfer.amount = Utils.reverse128(
@@ -313,11 +308,7 @@ library Verify {
         );
         offset += uint128Length;
 
-        // Skip decoding length since it's always 20 bytes
-        offset += strUint64Length;
-        fungibleTokenTransfer.receiverAddress = Strings
-            .fromHex(string(execution.slice(offset, addressLength)))
-            .toAddress(0);
+        fungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(0);
     }
 
     function parseNFTExecution(
@@ -343,10 +334,8 @@ library Verify {
         // Skip decoding enum since we already know the type of execution
         offset += enumLength;
 
-        // Skip decoding length since it's always 20 bytes
-        offset += strUint64Length;
-        nonFungibleTokenTransfer.collectionAddress = Strings
-            .fromHex(string(execution.slice(offset, addressLength)))
+        nonFungibleTokenTransfer.collectionAddress = execution
+            .slice(offset, addressLength)
             .toAddress(0);
         offset += addressLength;
 
@@ -358,10 +347,8 @@ library Verify {
         );
         offset += lenOfTokenId;
 
-        // Skip decoding length since it's always 20 bytes
-        offset += strUint64Length;
-        nonFungibleTokenTransfer.receiverAddress = Strings
-            .fromHex(string(execution.slice(offset, addressLength)))
-            .toAddress(0);
+        nonFungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(
+            0
+        );
     }
 }
