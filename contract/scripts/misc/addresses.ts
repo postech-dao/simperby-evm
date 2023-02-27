@@ -1,4 +1,4 @@
-// All addresses deployed on EVM network
+// All addresses deployed on EVM networks
 const addresses = {
   ethereum: {
     EVMTreasury: undefined,
