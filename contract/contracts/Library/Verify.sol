@@ -339,13 +339,10 @@ library Verify {
             .toAddress(0);
         offset += addressLength;
 
-        uint64 lenOfTokenId = Utils.reverse64(execution.slice(offset, strUint64Length).toUint64(0));
-        offset += strUint64Length;
-
-        nonFungibleTokenTransfer.tokenId = uint128(
-            Strings.stringToUint(string(execution.slice(offset, lenOfTokenId)))
+        nonFungibleTokenTransfer.tokenId = Utils.reverse128(
+            execution.slice(offset, uint128Length).toUint128(0)
         );
-        offset += lenOfTokenId;
+        offset += uint128Length;
 
         nonFungibleTokenTransfer.receiverAddress = execution.slice(offset, addressLength).toAddress(
             0
