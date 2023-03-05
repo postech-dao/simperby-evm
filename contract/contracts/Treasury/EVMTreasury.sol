@@ -45,7 +45,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
      */
     function execute(
         bytes memory transaction,
-        bytes memory executionHash,
+        bytes memory executionData,
         uint64 blockHeight,
         bytes memory merkleProof
     ) public nonReentrant {
@@ -53,30 +53,34 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
             string(transaction.slice(transaction.length - 68, 64))
         );
         require(
-            bytes32(hashOfExecution) == keccak256(executionHash),
+            bytes32(hashOfExecution) == keccak256(executionData),
             "EVMTreasury::execute: Invalid execution hash"
         );
 
-        uint64 lengthOfHeader = Utils.reverse64(transaction.slice(73, 8).toUint64(0));
-        if (lengthOfHeader == 25) {
-            FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTExecution(
-                executionHash
-            );
-            require(
-                fungibleTokenTransfer.contractSequence == contractSequence,
-                "EVMTreasury::execute: Invalid contract sequence"
-            );
-            require(
-                keccak256(fungibleTokenTransfer.chain) == keccak256(chainName),
-                "EVMTreasury::execute: Invalid chain"
-            );
+        Verify.verifyTransactionCommitment(
+            transaction,
+            lightClient.commitRoots,
+            merkleProof,
+            blockHeight,
+            lightClient.heightOffset
+        );
 
-            Verify.verifyTransactionCommitment(
-                transaction,
-                lightClient.commitRoots,
-                merkleProof,
-                blockHeight,
-                lightClient.heightOffset
+        (bytes memory _chainName, uint128 _contractSequence, uint32 msgType, uint offset) = Verify
+            .parseExecutionData(executionData);
+
+        require(
+            keccak256(_chainName) == keccak256(chainName),
+            "EVMTreasury::execute: Invalid chain"
+        );
+        require(
+            _contractSequence == contractSequence,
+            "EVMTreasury::execute: Invalid contract sequence"
+        );
+
+        if (msgType == 1) {
+            FungibleTokenTransfer memory fungibleTokenTransfer = Verify.parseFTExecution(
+                executionData,
+                offset
             );
 
             if (fungibleTokenTransfer.tokenAddress == address(0)) {
@@ -88,25 +92,10 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
                     fungibleTokenTransfer.amount
                 );
             }
-        } else if (lengthOfHeader == 26) {
+        } else if (msgType == 2) {
             NonFungibleTokenTransfer memory nonFungibleTokenTransfer = Verify.parseNFTExecution(
-                executionHash
-            );
-            require(
-                nonFungibleTokenTransfer.contractSequence == contractSequence,
-                "EVMTreasury::execute: Invalid contract sequence"
-            );
-            require(
-                keccak256(nonFungibleTokenTransfer.chain) == keccak256(chainName),
-                "EVMTreasury::execute: Invalid chain"
-            );
-
-            Verify.verifyTransactionCommitment(
-                transaction,
-                lightClient.commitRoots,
-                merkleProof,
-                blockHeight,
-                lightClient.heightOffset
+                executionData,
+                offset
             );
 
             withdrawERC721(

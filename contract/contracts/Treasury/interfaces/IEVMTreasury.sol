@@ -19,17 +19,13 @@ interface IEVMTreasury {
     event UpdateLightClient(uint256 indexed height, bytes indexed lastHeader);
 
     struct FungibleTokenTransfer {
-        uint128 contractSequence;
         uint128 amount;
-        bytes chain;
         address tokenAddress;
         address receiverAddress;
     }
 
     struct NonFungibleTokenTransfer {
-        uint128 contractSequence;
         uint128 tokenId;
-        bytes chain;
         address collectionAddress;
         address receiverAddress;
     }
