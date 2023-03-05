@@ -17,7 +17,7 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
     /// @notice The name of this contract
     string public constant name = "EVM SETTLEMENT CHAIN TREASURY V1";
     bytes public constant chainName = hex"6d797468657265756d"; // mythereum, for testing
-    uint128 public constant contractSequence = 0;
+    uint128 public contractSequence = 0;
 
     LightClient public lightClient;
 
@@ -106,6 +106,8 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
         } else {
             revert("Invalid transaction header");
         }
+
+        contractSequence += 1;
     }
 
     function withdrawETH(address to, uint256 amount) internal {
