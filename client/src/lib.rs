@@ -1,6 +1,7 @@
 use async_trait::async_trait;
-use ethers::{contract::abigen, types::Address};
-use ethers_core::types::{BlockId, BlockNumber, Bytes, H256, U256};
+use ethers::signers::{ Wallet, LocalWallet, MnemonicBuilder, coins_bip39::English};
+use ethers::{contract::abigen, types::Address, middleware::SignerMiddleware};
+use ethers_core::types::{BlockId, BlockNumber, Bytes};
 use ethers_providers::{Http, Middleware, Provider};
 use eyre::Error;
 use merkle_tree::MerkleProof;
@@ -10,6 +11,10 @@ use simperby_settlement::execution::convert_transaction_to_execution;
 use simperby_settlement::*;
 use std::str::FromStr;
 use std::{sync::Arc, time::Duration};
+use dotenvy_macro::{self, dotenv};
+
+const ADDRESS_HEX_LEN: usize = 40;
+const ADDRESS_HEX_LEN_WITH_PREFIX: usize = 42;
 
 abigen!(
     ITreasury,
@@ -29,6 +34,8 @@ abigen!(
     r#"[
         function balanceOf(address account) external view returns (uint256)
         function totalSupply() public view returns (uint256)
+        function transfer(address _to, uint256 _value) public returns (bool success)
+        function transferFrom(address _from, address _to, uint256 _value) public returns (bool success)
     ]"#,
 );
 
@@ -140,8 +147,7 @@ impl SettlementChain for EvmCompatibleChain {
         let block = provider
             .get_block_with_txs(BlockId::Number(BlockNumber::Latest))
             .await?;
-        if block.is_some() {
-            let block = block.unwrap();
+        if let Some(block) = block {
             let height = block.number.unwrap().as_u64();
             let timestamp = block.timestamp.as_u64();
             return Ok(SettlementChainBlock { height, timestamp });
@@ -155,22 +161,22 @@ impl SettlementChain for EvmCompatibleChain {
 
     async fn get_relayer_account_info(&self) -> Result<(String, Decimal), Error> {
         let mut address = String::new();
-        address.reserve(42);
+        address.reserve(ADDRESS_HEX_LEN_WITH_PREFIX);
         let hex_str = self.relayer_address_hex_str.as_str();
-        if (hex_str.len() != 40 && hex_str.len() != 42)
-            || (hex_str.len() == 42 && !hex_str.starts_with("0x"))
-            || (hex_str.len() == 40 && hex_str.starts_with("0x"))
+        if (hex_str.len() != ADDRESS_HEX_LEN && hex_str.len() != ADDRESS_HEX_LEN_WITH_PREFIX)
+            || (hex_str.len() == ADDRESS_HEX_LEN_WITH_PREFIX && !hex_str.starts_with("0x"))
+            || (hex_str.len() == ADDRESS_HEX_LEN && hex_str.starts_with("0x"))
         {
             return Err(Error::msg(format!("Invalid relayer address {}", hex_str)));
         }
-        if hex_str.len() == 40 {
+        if hex_str.len() == ADDRESS_HEX_LEN {
             address.push_str("0x");
         }
         address.push_str(hex_str);
-        let from = Address::from_str(address.as_str())?;
+        let relayer_address = Address::from_str(address.as_str())?;
         let provider = Provider::<Http>::try_from(self.chain.get_rpc_url())?.interval(Duration::from_secs(1));
 
-        let balance = provider.get_balance(from, None).await?.as_u128();
+        let balance = provider.get_balance(relayer_address, None).await?.as_u128();
         Ok((address, Decimal::from(balance)))
     }
 
@@ -224,16 +230,18 @@ impl SettlementChain for EvmCompatibleChain {
         _proof: FinalizationProof,
     ) -> Result<(), Error> {
         let provider = Provider::<Http>::try_from(self.chain.get_rpc_url()).unwrap();
-        let sender = self.relayer_address_hex_str.parse::<Address>().unwrap();
-        let provider = Arc::new(provider.with_sender(sender));
-        let address = self
+        let wallet: LocalWallet = MnemonicBuilder::<English>::default()
+        .phrase(dotenv!("RELAYER_MNEMONIC"))
+        .index(0u32)?.build().unwrap();
+        let client = SignerMiddleware::new(&provider, wallet);
+        let contract_address = self
             .treasury
             .as_ref()
             .ok_or_else(|| Error::msg("Treasury is not set"))?
             .address
             .parse::<Address>()
             .map_err(|_| Error::msg("Invalid address"))?;
-        let contract = ITreasury::new(address, Arc::clone(&provider));
+        let contract = ITreasury::new(contract_address, Arc::new(client));
         let header = Bytes::from(
             serde_spb::to_vec(&_header)
                 .map_err(|_| Error::msg("Failed to serialize block header"))?,
@@ -297,6 +305,13 @@ impl SettlementChain for EvmCompatibleChain {
 
 #[cfg(test)]
 mod tests {
+    use ethers::{utils::Anvil, signers::Signer, types::TransactionReceipt};
+    use ethers_core::k256::ecdsa::SigningKey;
+    use ethers_core::k256::schnorr::signature::DigestSigner;
+    use ethers_core::types::{H160, U256};
+    use ethers_core::types::{TransactionRequest, Signature};
+    use ethers_signers::{ Wallet};
+
     use super::*;
 
     #[tokio::test]
@@ -439,20 +454,21 @@ mod tests {
     async fn get_relayer_acoount_info_on_local() {
         const LOCAL_NODE_RPC_URL: &str = "http://localhost:8545";
         // change this address to your own
-        const ADDRESS: &str = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+        let _address = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+        let _address_no_prefix = _address[2..].to_owned();
         let chain_type = ChainType::Other(ChainInfo {
             rpc_url: LOCAL_NODE_RPC_URL.to_owned(),
             chain_name: Some("Local Node".to_owned()),
         });
         let chain = EvmCompatibleChain {
             chain: chain_type,
-            relayer_address_hex_str: ADDRESS[2..].to_owned(),
+            relayer_address_hex_str: _address[2..].to_owned(),
             treasury: None,
         };
         let (address, balance) = chain.get_relayer_account_info().await.unwrap();
         println!("Checking connection to {}", LOCAL_NODE_RPC_URL);
         println!("Relayer address: {}, balance: {}", address, balance);
-        assert_eq!(address, ADDRESS);
+        assert_eq!(address, _address);
         assert!(balance >= Decimal::from(0));
     }
 
@@ -570,5 +586,54 @@ mod tests {
 
         println!("total supply: {}", total_supply);
         println!("balance: {}", balance);
+    }
+
+
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn check_tx_fee() {
+        let mnemonic = "figure tissue enable jacket text glide jump copper various prevent orphan whisper";
+        let erc20_address = "0xEC7F43Fe03E9AFDCE2F87AdF50D34F1C49492841";
+        let goerli_url = "https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161";
+        let provider = Provider::<Http>::try_from(goerli_url).unwrap();
+        let chain_id = provider.get_chainid().await.unwrap().as_u64();
+        let wallet = MnemonicBuilder::<English>::default()
+            .phrase(mnemonic).build().unwrap().with_chain_id(chain_id);
+        // let wallet = "baebb895e0215af8dc37d64714c7e9120631a30e22fecedaf04c0ba876376b76".parse::<LocalWallet>().unwrap();
+        let wallet2 = "ab78850337b74a47b8a07f807837f496cfacbf09c486fd1f65204d230b879847"
+    .parse::<LocalWallet>().unwrap().with_chain_id(chain_id);
+        let wallet_address = wallet.address();
+        let wallet2_address = wallet2.address();
+        println!("wallet address: {}", wallet_address);
+        println!("wallet2 address: {}", wallet2_address);
+        let client = SignerMiddleware::new(provider.clone(), wallet.clone());
+        // let contract = IERC20::new(erc20_address.parse::<Address>().unwrap(), Arc::new(&client));
+        let balance = provider.get_balance(wallet_address, None).await.unwrap().as_u128();
+        // let erc20_balance = contract.balance_of(wallet_address).call().await.unwrap().as_u128();
+        println!("balance: {}", balance);
+        // println!("erc20 balance: {}", erc20_balance);
+        let balance = provider.get_balance(wallet2_address, None).await.unwrap().as_u128();
+        // let erc20_balance = contract.balance_of(wallet2_address).call().await.unwrap().as_u128();
+        println!("balance2: {}", balance);
+        // println!("erc20 balance2: {}", erc20_balance);
+        // let tx = TransactionRequest::new()
+        //     .to(wallet2_address)
+        //     .value(U256::from(100000u128)).into();
+        let tx = TransactionRequest::new()
+        .to(wallet2_address)
+        .value(U256::from(1000000000000000u128))
+        .gas_price(U256::from(100000000000u128));
+        // let signature: Signature = wallet.sign_transaction(&tx.into()).await.unwrap();
+        let tx_hash = client.send_transaction(tx, None).await.unwrap();
+        println!("tx_result: {:?}", tx_hash);
+        // // let balance = provider.get_balance(wallet_address, None).await.unwrap().as_u128();
+        // // // let erc20_balance = contract.balance_of(wallet_address).call().await.unwrap().as_u128();
+        // // println!("balance: {}", balance);
+        // // // println!("erc20 balance: {}", erc20_balance);
+        // // let balance = provider.get_balance(wallet2_address, None).await.unwrap().as_u128();
+        // // // let erc20_balance = contract.balance_of(wallet2_address).call().await.unwrap().as_u128();
+        // // println!("balance2: {}", balance);
+        // // // println!("erc20 balance2: {}", erc20_balance);
     }
 }
