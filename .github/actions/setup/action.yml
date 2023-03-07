@@ -20,3 +20,7 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       env:
         SKIP_COMPILE: true
+    - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly

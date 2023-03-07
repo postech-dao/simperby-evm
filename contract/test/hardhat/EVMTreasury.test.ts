@@ -10,7 +10,7 @@ import {
   tx,
   merkleProof,
   execution,
-} from "../scripts/misc/constants";
+} from "../../scripts/misc/constants";
 
 const E18n = 10n ** 18n;
 const E9n = 10n ** 9n;
