@@ -17,7 +17,7 @@
     "testnet:deploy": "yarn goerli:deploy && yarn kovan:deploy && yarn moonbase:deploy && yarn arbitrum:deploy",
     "goerli:deploy": " hardhat --network goerli deploy",
     "goerli:verify": "hardhat --network goerli etherscan-verify --solc-input --license GPL-3.0 --force-license",
-    "test": "hardhat test && forge test -vv",
+    "test": "hardhat test && forge test",
     "test:hardhat": "hardhat test",
     "test:forge": "forge test",
     "slither": "npm run clean && slither . --detect reentrancy-eth,reentrancy-no-eth,reentrancy-unlimited-gas"
