@@ -17,6 +17,6 @@ rust_decimal = "1.25.0"
 simperby-settlement = { git = "https://github.com/postech-dao/simperby" }
 simperby-common = { git = "https://github.com/postech-dao/simperby" }
 eyre = "0.6.8"
-ethers = { version = "1.0.2", features = ["rustls", "openssl", "legacy", "celo"]}
+ethers = { version = "1.0.2", features = ["rustls", "openssl", "legacy"]}
 ethers-providers = "1.0.2"
 ethers-core = "1.0.2"

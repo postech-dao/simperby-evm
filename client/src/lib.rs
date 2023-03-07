@@ -1,15 +1,44 @@
-use std::str::FromStr;
-
 use async_trait::async_trait;
-use ethers::types::Address;
-use ethers_core::types::{BlockId, BlockNumber};
+use ethers::{contract::abigen, types::Address};
+use ethers_core::types::{BlockId, BlockNumber, Bytes, H256, U256};
 use ethers_providers::{Http, Middleware, Provider};
-use execution::*;
 use eyre::Error;
 use merkle_tree::MerkleProof;
 use rust_decimal::Decimal;
 use simperby_common::*;
+use simperby_settlement::execution::convert_transaction_to_execution;
 use simperby_settlement::*;
+use std::str::FromStr;
+use std::{sync::Arc, time::Duration};
+
+abigen!(
+    ITreasury,
+    r#"[
+        function updateLightClient(bytes memory header, bytes memory proof) public
+        function name() external view returns (string memory)
+        function chainName() external view returns (bytes memory)
+        function contractSequence() external view returns (uint128)
+        function lightClient() external view returns (uint64 heightOffset, bytes memory lastHeader)
+        function viewCommitRoots() external view returns (bytes32[] memory commitRoots)
+        function execute(bytes memory transaction,bytes memory executionHash, uint64 blockHeight, bytes memory merkleProof) public
+    ]"#,
+);
+
+abigen!(
+    IERC20,
+    r#"[
+        function balanceOf(address account) external view returns (uint256)
+        function totalSupply() public view returns (uint256)
+    ]"#,
+);
+
+abigen!(
+    IERC721,
+    r#"[
+        function balanceOf(address account) external view returns (uint256)
+        function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256)
+    ]"#,
+);
 
 pub struct EvmCompatibleChain {
     pub chain: ChainType,
@@ -19,9 +48,8 @@ pub struct EvmCompatibleChain {
 
 pub struct Treasury {
     pub address: String,
-    pub fungible_token: String,
-    pub non_fungible_token: String,
-    pub abi: String,
+    pub ft_contract_address_list: Option<Vec<(String, String)>>, // (token_name, token_address)
+    pub nft_contract_address_list: Option<Vec<(String, String)>>, // (token_name, token_address)
 }
 
 pub struct ChainInfo {
@@ -140,20 +168,47 @@ impl SettlementChain for EvmCompatibleChain {
         }
         address.push_str(hex_str);
         let from = Address::from_str(address.as_str())?;
-        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url())?;
+        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url())?.interval(Duration::from_secs(1));
+
         let balance = provider.get_balance(from, None).await?.as_u128();
         Ok((address, Decimal::from(balance)))
     }
 
     async fn get_light_client_header(&self) -> Result<BlockHeader, Error> {
-        todo!()
+        let treasury = self
+            .treasury
+            .as_ref()
+            .ok_or_else(|| Error::msg("Treasury is not set"))?;
+        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url())?;
+        let provider = Arc::new(provider);
+        let address = treasury
+            .address
+            .parse::<Address>()
+            .map_err(|_| Error::msg("Invalid treasury address"))?;
+        let contract = ITreasury::new(address, Arc::clone(&provider));
+        let (_, last_header) = contract.light_client().call().await.unwrap();
+        let light_client_header: BlockHeader = bincode::deserialize(&last_header).unwrap();
+        Ok(light_client_header)
     }
 
     async fn get_treasury_fungible_token_balance(
         &self,
         _address: String,
     ) -> Result<Decimal, Error> {
-        todo!()
+        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url()).unwrap();
+        let treasury_address = self
+            .treasury
+            .as_ref()
+            .ok_or_else(|| Error::msg("Treasury is not set"))?
+            .address
+            .parse::<Address>()
+            .map_err(|_| Error::msg("Invalid address"))?;
+        let contract_address = _address
+            .parse::<Address>()
+            .map_err(|_| Error::msg("Invalid address"))?;
+        let contract = IERC20::new(contract_address, Arc::new(provider));
+        let balance = contract.balance_of(treasury_address).call().await.unwrap();
+        Ok(Decimal::from(balance.as_u128()))
     }
 
     async fn get_treasury_non_fungible_token_balance(
@@ -168,16 +223,75 @@ impl SettlementChain for EvmCompatibleChain {
         _header: BlockHeader,
         _proof: FinalizationProof,
     ) -> Result<(), Error> {
-        todo!()
+        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url()).unwrap();
+        let sender = self.relayer_address_hex_str.parse::<Address>().unwrap();
+        let provider = Arc::new(provider.with_sender(sender));
+        let address = self
+            .treasury
+            .as_ref()
+            .ok_or_else(|| Error::msg("Treasury is not set"))?
+            .address
+            .parse::<Address>()
+            .map_err(|_| Error::msg("Invalid address"))?;
+        let contract = ITreasury::new(address, Arc::clone(&provider));
+        let header = Bytes::from(
+            serde_spb::to_vec(&_header)
+                .map_err(|_| Error::msg("Failed to serialize block header"))?,
+        );
+        let proof = Bytes::from(
+            serde_spb::to_vec(&_proof)
+                .map_err(|_| Error::msg("Failed to serialize finalization proof"))?,
+        );
+        contract
+            .update_light_client(header, proof)
+            .send()
+            .await
+            .map_err(|_| Error::msg("Failed to update light client"))?;
+        Ok(())
     }
 
     async fn execute(
         &self,
-        _execution: Execution,
+        _transaction: Transaction,
         _block_height: u64,
         _proof: MerkleProof,
     ) -> Result<(), Error> {
-        todo!()
+        let provider = Provider::<Http>::try_from(self.chain.get_rpc_url()).unwrap();
+        let sender = self.relayer_address_hex_str.parse::<Address>().unwrap();
+        let provider = Arc::new(provider.with_sender(sender));
+        let address = self
+            .treasury
+            .as_ref()
+            .ok_or_else(|| Error::msg("Treasury is not set"))?
+            .address
+            .parse::<Address>()
+            .map_err(|_| Error::msg("Invalid address"))?;
+        let contract = ITreasury::new(address, Arc::clone(&provider));
+        let transaction = Bytes::from(
+            serde_spb::to_vec(&_transaction)
+                .map_err(|_| Error::msg("Failed to serialize transaction"))?,
+        );
+        let execution = convert_transaction_to_execution(&_transaction).map_err(|_| {
+            Error::msg(format!(
+                "Failed to convert transaction to execution: {:?}",
+                _transaction
+            ))
+        })?;
+        let execution = Bytes::from(
+            serde_spb::to_vec(&execution)
+                .map_err(|_| Error::msg("Failed to serialize execution"))?,
+        );
+        let proof = Bytes::from(
+            serde_spb::to_vec(&_proof)
+                .map_err(|_| Error::msg("Failed to serialize merkle proof"))?,
+        );
+        let block_height = _block_height;
+        contract
+            .execute(transaction, execution, block_height, proof)
+            .send()
+            .await
+            .map_err(|_| Error::msg("Failed to execute"))?;
+        Ok(())
     }
 }
 
@@ -241,24 +355,17 @@ mod tests {
 
     #[tokio::test]
     async fn get_last_block() {
-        // Ethereum
         const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
-        let eth_type = ChainType::Ethereum(ChainInfo {
-            rpc_url: ETH_RPC_URL.to_owned(),
-            chain_name: None,
-        });
-        let eth = EvmCompatibleChain {
-            chain: eth_type,
-            relayer_address_hex_str: "0x0000000".to_owned(),
-            treasury: None,
-        };
-        let eth_last_block = eth.get_last_block().await;
-        // println!("{:?}", eth_last_block.is_ok());
-        assert!(eth_last_block.is_ok());
+        let provider = Provider::<Http>::try_from(ETH_RPC_URL).unwrap();
+        let eth_last_block = provider
+            .get_block(BlockId::Number(BlockNumber::Latest))
+            .await
+            .unwrap();
         let eth_last_block = eth_last_block.unwrap();
-        print!("{:?}", eth_last_block);
-        assert!(eth_last_block.height > 0);
-        assert!(eth_last_block.timestamp > 0);
+        println!("{}", eth_last_block.number.unwrap().as_u64());
+        println!("{}", eth_last_block.timestamp.as_u64());
+        assert!(eth_last_block.number.unwrap().as_u64() > 0);
+        assert!(eth_last_block.timestamp.as_u64() > 0);
     }
 
     #[tokio::test]
@@ -329,23 +436,139 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn get_relayer_acoount_info_from_local_node() {
+    async fn get_relayer_acoount_info_on_local() {
         const LOCAL_NODE_RPC_URL: &str = "http://localhost:8545";
         // change this address to your own
-        const ADDR: &str = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+        const ADDRESS: &str = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
         let chain_type = ChainType::Other(ChainInfo {
             rpc_url: LOCAL_NODE_RPC_URL.to_owned(),
             chain_name: Some("Local Node".to_owned()),
         });
         let chain = EvmCompatibleChain {
             chain: chain_type,
-            relayer_address_hex_str: ADDR[2..].to_owned(),
+            relayer_address_hex_str: ADDRESS[2..].to_owned(),
             treasury: None,
         };
         let (address, balance) = chain.get_relayer_account_info().await.unwrap();
         println!("Checking connection to {}", LOCAL_NODE_RPC_URL);
         println!("Relayer address: {}, balance: {}", address, balance);
-        assert_eq!(address, ADDR);
+        assert_eq!(address, ADDRESS);
         assert!(balance >= Decimal::from(0));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn get_light_client_on_local() {
+        let address = "0xEC7F43Fe03E9AFDCE2F87AdF50D34F1C49492841";
+        let treasury = Treasury {
+            address: address.to_owned(),
+            ft_contract_address_list: None,
+            nft_contract_address_list: None,
+        };
+        let client = EvmCompatibleChain {
+            chain: ChainType::Other(ChainInfo {
+                rpc_url: "http://localhost:8545".to_owned(),
+                chain_name: Some("Local Node".to_owned()),
+            }),
+            relayer_address_hex_str: "0x619b2fe763f885f59ce96e1bec1375d2c94c9f4a".to_owned(),
+            treasury: Some(treasury),
+        };
+        let header = client.get_light_client_header().await.unwrap();
+        print!("Header: {:?}", header);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn update_light_client_on_local() {
+        let _header = "04b31b74ad078b082cad69775717016d7fbfae7b9f7dde8d1d988e0ff2e2b30e9413090e436c7c2a2c06e7ddf69484aeaaadc7ecbf1dd92459769ba96043a075640400000000000000bdc284f3140c1d17fefa7b7db866767027345a547a6a13b7ed4e2389e9125b24477fe6396cf54ce2e6a5ff7f4df9ffeca6d15f645c8c46f0f62ca554d232813a1c04b31b74ad078b082cad69775717016d7fbfae7b9f7dde8d1d988e0ff2e2b30e9413090e436c7c2a2c06e7ddf69484aeaaadc7ecbf1dd92459769ba96043a0756484a1b6122d41f0fea7884ae8949de8facfa6d124af26dbbf909881bf625212cb28c44b78580f28d8d2decfc8e97cb8923af71fbd8fa8dc7eb02485d29901c2801b04a688f0a4f9c863b6aa927e0df198307e058999c3ea8a012e47e1c598a70b67b383c8a3f7b2a392904e71689595147334e821985b1175b10fbc47d1d9ffd4ec6b408363c113b520cfd6c51fcf1978637562a1e26a455e66a713f48829b070cede740db28b8dba86d44a195158f51bb1494cac1d5d83752375d4e03c47c8459c591b04c1b5a31db87d102ac45efe81288a1ea380abca214a37b3b9bc9ad1da984f08c4d40e948e6548df924ee7f2513324136f40fe20ebe77a1ee019e526ea6e3b974cc2ba5fe4e40257408b5df5c44137ab439fa361a647769b2c0b2a79deee161bcc63e30417a822d731bb0bd15fafe544a2640dc85098f7ad95d1da18f29148b8c41c0420e4b9d289f068377a1ec0c37fd89661a60351914cacaca2f116c95d0ec0e8a7f48f22a495f6922c8b48790975d4a639f320135e89c98c30cf0da2201fc51455f978240d18bae917f6cbca88e19cd0ca603fed6f98dc5a43b002c56db1593a8801000000000000000000000000000000b1681c696f19ec0ef665900e49a1fd05f1d23534a01a0a8ff7233ce37384fb2f0000000000000000000000000000000000000000000000000000000000000000040000000000000004b31b74ad078b082cad69775717016d7fbfae7b9f7dde8d1d988e0ff2e2b30e9413090e436c7c2a2c06e7ddf69484aeaaadc7ecbf1dd92459769ba96043a07564010000000000000004a688f0a4f9c863b6aa927e0df198307e058999c3ea8a012e47e1c598a70b67b383c8a3f7b2a392904e71689595147334e821985b1175b10fbc47d1d9ffd4ec6b010000000000000004c1b5a31db87d102ac45efe81288a1ea380abca214a37b3b9bc9ad1da984f08c4d40e948e6548df924ee7f2513324136f40fe20ebe77a1ee019e526ea6e3b974c01000000000000000420e4b9d289f068377a1ec0c37fd89661a60351914cacaca2f116c95d0ec0e8a7f48f22a495f6922c8b48790975d4a639f320135e89c98c30cf0da2201fc5145501000000000000000500000000000000302e312e30";
+        let _proof = "0400000000000000a7f48e414877566a80a99ba028901e9bed3c2aaee28f2b8d4d2db6ef4113ed7919011fd14ca73a276d3816c00688bba8d66a0d5a31641a10013e49ad546f8ab91b04b31b74ad078b082cad69775717016d7fbfae7b9f7dde8d1d988e0ff2e2b30e9413090e436c7c2a2c06e7ddf69484aeaaadc7ecbf1dd92459769ba96043a075649b54b52df49b4486202fa9e91a5fbadbbb3d6e8014861145cf59b1bebbef9bda1865ed720da370212e9b2d6e4abb8984da1a497980c185924200ada0829bcb1f1b04a688f0a4f9c863b6aa927e0df198307e058999c3ea8a012e47e1c598a70b67b383c8a3f7b2a392904e71689595147334e821985b1175b10fbc47d1d9ffd4ec6b3fb9d560513e05fc48c2453f542b96db60dab8f4b51f8372ac82c1975032efc2487d4e0b34215a9a17b59ad3ce1fd59ed9f00563f1c6702c7a00436356e290551b04c1b5a31db87d102ac45efe81288a1ea380abca214a37b3b9bc9ad1da984f08c4d40e948e6548df924ee7f2513324136f40fe20ebe77a1ee019e526ea6e3b974cb47e9823ea61fb045724693c9a59980b5f04e00e8060a989a7e56593a45eb0a2525cd353e3d9d810b11c791df49b0be65f2ce00cb647c08ece0170ebae20568a1c0420e4b9d289f068377a1ec0c37fd89661a60351914cacaca2f116c95d0ec0e8a7f48f22a495f6922c8b48790975d4a639f320135e89c98c30cf0da2201fc51455";
+        let header =
+            serde_spb::from_slice::<BlockHeader>(hex::decode(_header).unwrap().as_slice()).unwrap();
+        let proof =
+            serde_spb::from_slice::<FinalizationProof>(hex::decode(_proof).unwrap().as_slice())
+                .unwrap();
+        let encoded_header = hex::encode(serde_spb::to_vec(&header).unwrap());
+        let encoded_proof = hex::encode(serde_spb::to_vec(&proof).unwrap());
+        assert_eq!(encoded_header, _header);
+        assert_eq!(encoded_proof, _proof);
+        let client = EvmCompatibleChain {
+            chain: ChainType::Other(ChainInfo {
+                rpc_url: "http://localhost:8545".to_owned(),
+                chain_name: Some("Local Node".to_owned()),
+            }),
+            relayer_address_hex_str: "0x1bc43e9283D35DCC205bE7225069B4B6f1f2287C".to_owned(),
+            treasury: Some(Treasury {
+                address: "0x66De55F4457948e40e68c355304a4082844a5349".to_owned(),
+                ft_contract_address_list: None,
+                nft_contract_address_list: None,
+            }),
+        };
+        let last_header = client.get_light_client_header().await.unwrap();
+        println!("last_header before update: {:?}", last_header);
+        client
+            .update_treasury_light_client(header.clone(), proof)
+            .await
+            .unwrap();
+        let last_header = client.get_light_client_header().await.unwrap();
+        assert_eq!(&last_header, &header);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn tx_to_execution() {
+        let tx: Transaction = Transaction {
+            author: "".to_owned(),
+            timestamp: 1,
+            head: "".to_owned(),
+            body: "".to_owned(),
+            diff: Diff::None,
+        };
+        let execution = convert_transaction_to_execution(&tx).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn get_ft_balance() {
+        let treasury_address = "0x619b2fe763f885f59ce96e1bec1375d2c94c9f4a";
+        let contract_address = "0x9683858e4B429315A8007723819d7deffBB211Cd";
+        let treasury = Treasury {
+            address: treasury_address.to_owned(),
+            ft_contract_address_list: None,
+            nft_contract_address_list: None,
+        };
+        let client = EvmCompatibleChain {
+            chain: ChainType::Other(ChainInfo {
+                rpc_url: "http://localhost:8545".to_owned(),
+                chain_name: Some("Local Node".to_owned()),
+            }),
+            relayer_address_hex_str: "0x619b2fe763f885f59ce96e1bec1375d2c94c9f4a".to_owned(),
+            treasury: Some(treasury),
+        };
+        let balance = client
+            .get_treasury_fungible_token_balance(contract_address.to_owned())
+            .await
+            .unwrap();
+        println!("balance: {}", balance);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn ft_total_supply() {
+        let contract_address = "0x9683858e4B429315A8007723819d7deffBB211Cd"
+            .to_owned()
+            .parse::<Address>()
+            .unwrap();
+        let provider = Provider::try_from("http://localhost:8545").unwrap();
+        let contract = IERC20::new(contract_address, Arc::new(provider));
+        let total_supply = contract.total_supply().call().await.unwrap();
+
+        let owner_address = "0x619B2fE763f885f59Ce96e1Bec1375d2C94c9F4A"
+            .to_owned()
+            .parse::<Address>()
+            .unwrap();
+        let balance = contract.balance_of(owner_address).call().await.unwrap();
+
+        println!("total supply: {}", total_supply);
+        println!("balance: {}", balance);
     }
 }
