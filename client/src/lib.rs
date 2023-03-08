@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use execution::*;
 use eyre::Error;
 use merkle_tree::MerkleProof;
 use rust_decimal::Decimal;
@@ -54,7 +53,7 @@ impl SettlementChain for Ethereum {
 
     async fn execute(
         &self,
-        _execution: Execution,
+        _transaction: Transaction,
         _block_height: u64,
         _proof: MerkleProof,
     ) -> Result<(), Error> {
