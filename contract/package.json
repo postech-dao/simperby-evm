@@ -19,7 +19,7 @@
     "goerli:verify": "hardhat --network goerli etherscan-verify --solc-input --license GPL-3.0 --force-license",
     "test": "hardhat test && forge test",
     "test:hardhat": "hardhat test",
-    "test:forge": "forge test",
+    "test:forge": "forge test -vv",
     "slither": "npm run clean && slither . --detect reentrancy-eth,reentrancy-no-eth,reentrancy-unlimited-gas"
   },
   "devDependencies": {
