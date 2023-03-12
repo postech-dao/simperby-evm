@@ -6,8 +6,8 @@
 [twitter-image]: https://img.shields.io/twitter/follow/postech_dao?style=social
 [twitter-link]: https://twitter.com/postech_dao
 
-This repository implements the settlement chain interface for EVM-based ecosystem that can interact with simperby.
-If you don't know what simeprby is, please visit [simperby]("https://github.com/postech-dao/simperby").
+This repository implements the settlement chain interface for an EVM-based ecosystem that can interact with simperby.
+If you don't know what simperby is, please visit [simperby]("https://github.com/postech-dao/simperby").
 
 ## Building
 
@@ -32,14 +32,14 @@ Currently, we support both 'hardhat' and 'foundry' for testing.
 3. `npx hardhat node`
 4. `npx hardhat test --network localhost`
 
-You can check build results in `/artifacts` and gas report in `/contract`.
+You can check build results in `/artifacts` and gas reports in `/contract`.
 
 ### Foundry
 
-1. set up foundry with above instructions.
+1. set up foundry with the above instructions.
 2. `forge build`
 3. `forge test` or `forge test -vv` if you want to check logs.
-4. `anvil` if you want to run local node with foundry.
+4. `anvil` if you want to run a local node with foundry.
 
 For more details about foundry, please refer to [foundry]("https://github.com/foundry-rs/foundry")
 
