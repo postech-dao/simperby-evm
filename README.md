@@ -1,4 +1,4 @@
-# Simperby
+# Simperby-evm
 
 [![License: MIT](https://img.shields.io/github/license/postech-dao/simperby)](https://opensource.org/licenses/MIT)
 [![Twitter][twitter-image]][twitter-link]
