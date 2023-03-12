@@ -2,6 +2,7 @@ const path = require("path");
 const envPath = path.join(__dirname, "./.env");
 require("dotenv").config({ path: envPath });
 
+import "@nomicfoundation/hardhat-foundry";
 require("hardhat-deploy");
 require("hardhat-contract-sizer");
 require("hardhat-gas-reporter");
@@ -284,7 +285,7 @@ module.exports = {
   },
   paths: {
     sources: "./contracts",
-    tests: "./test",
+    tests: "./test/hardhat",
     cache: "./cache",
     artifacts: "./artifacts",
   },
