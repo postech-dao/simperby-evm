@@ -11,8 +11,6 @@ If you don't know what simperby is, please visit [simperby]("https://github.com/
 
 ## Building
 
----
-
 1. `git clone https://github.com/postech-dao/simperby-evm.git`
 2. `npm install`
 3. Install [foundry](https://book.getfoundry.sh/getting-started/installation) if you want to use for testing.
@@ -20,8 +18,6 @@ If you don't know what simperby is, please visit [simperby]("https://github.com/
 5. (Optional) Create .env and fill your environment variables with the format of .env.example.
 
 ## Testing
-
----
 
 Currently, we support both 'hardhat' and 'foundry' for testing.
 
@@ -45,8 +41,6 @@ For more details about foundry, please refer to [foundry]("https://github.com/fo
 
 ## Deployment
 
----
-
 If you want to deploy EVMTreasury to any EVM chains, you need to fill `.env` file and check `hardhat.config.ts`.
 
 1. `npx hardhat compile`
@@ -56,8 +50,6 @@ If you want to deploy EVMTreasury to any EVM chains, you need to fill `.env` fil
 
 ## Misc
 
----
-
 You can use prettier for code formatting.
 
 ```bash
@@ -65,7 +57,5 @@ npx prettier --write .
 ```
 
 ## License
-
----
 
 This project is licensed under the [MIT license](./LICENSE).
