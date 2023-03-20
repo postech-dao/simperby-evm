@@ -25,9 +25,14 @@ library Verify {
     uint constant strUint64Length = 8;
     uint constant enumLength = 4;
 
-    struct TypedSignature {
+    struct Signatures {
         bytes signature;
         bytes signer;
+    }
+
+    struct BlockFinalizationProof {
+        uint64 round;
+        Signatures[] blockFinalizationSignatures;
     }
 
     struct ValidatorSet {
@@ -37,7 +42,7 @@ library Verify {
 
     struct BlockHeader {
         bytes author;
-        TypedSignature[] prevBlockFinalizationProof;
+        BlockFinalizationProof prevBlockFinalizationProof;
         bytes32 previousHash;
         uint64 blockHeight;
         int64 timestamp;
@@ -84,9 +89,15 @@ library Verify {
             }
         }
 
+        bytes32 sigingData = keccak256(
+            abi.encodePacked(
+                _blockHeader.previousHash,
+                _blockHeader.prevBlockFinalizationProof.round
+            )
+        );
         verifyFinalizationProof(
             _prevBlockHeader,
-            _blockHeader.previousHash,
+            sigingData,
             _blockHeader.prevBlockFinalizationProof
         );
     }
@@ -95,29 +106,27 @@ library Verify {
      * @dev Verifies finalization proof with TypedSignature.
      * @param header Decoded header.
      * @param headerHash Keccak256 hashed header.
-     * @param finalizationProof TypedSignatures of validators for header.
+     * @param finalizationProof BlockFinalizationProof.
      */
     function verifyFinalizationProof(
         BlockHeader memory header,
         bytes32 headerHash,
-        TypedSignature[] memory finalizationProof
+        BlockFinalizationProof memory finalizationProof
     ) internal pure {
         uint256 _totalVotingPower;
         uint256 _votedVotingPower;
         for (uint i = 0; i < header.validators.length; i++) {
             _totalVotingPower += header.validators[i].votingPower;
         }
-        uint k = 0;
-        for (uint j = 0; j < finalizationProof.length; j++) {
-            (bytes32 r, bytes32 s, uint8 v) = splitSignature(finalizationProof[j].signature);
-            if (Utils.pkToAddress(finalizationProof[j].signer) == ecrecover(headerHash, v, r, s)) {
+        Signatures[] memory signatures = finalizationProof.blockFinalizationSignatures;
+        for (uint j = 0; j < signatures.length; j++) {
+            (bytes32 r, bytes32 s, uint8 v) = splitSignature(signatures[j].signature);
+            if (Utils.pkToAddress(signatures[j].signer) == ecrecover(headerHash, v, r, s)) {
                 require(
-                    keccak256(finalizationProof[j].signer) ==
-                        keccak256(header.validators[k].validator)
+                    keccak256(signatures[j].signer) == keccak256(header.validators[j].validator)
                 );
-                _votedVotingPower += header.validators[k].votingPower;
+                _votedVotingPower += header.validators[j].votingPower;
             }
-            k++;
         }
 
         require(
@@ -186,26 +195,29 @@ library Verify {
         }
     }
 
-    function parseProof(bytes memory input) internal pure returns (TypedSignature[] memory) {
-        uint64 len = Utils.reverse64(input.toUint64(0));
+    function parseProof(bytes memory input) internal pure returns (BlockFinalizationProof memory) {
+        uint64 round = Utils.reverse64(input.toUint64(0));
+        uint offset = strUint64Length;
+
+        uint64 len = Utils.reverse64(input.toUint64(offset));
+        offset += strUint64Length;
+
         require(
-            len == (input.length - 8) / 130 && (input.length - 8) % 130 == 0,
+            len == (input.length - 16) / 130 && (input.length - 16) % 130 == 0,
             "Verify::parseProof: Invalid proof length"
         );
 
-        TypedSignature[] memory fp = new TypedSignature[](len);
-
-        uint offset = strUint64Length;
+        Signatures[] memory fp = new Signatures[](len);
 
         for (uint256 i = 0; i < len; i++) {
-            fp[i] = TypedSignature(
+            fp[i] = Signatures(
                 input.slice(offset, sigLength),
                 input.slice(offset + sigLength + 1, pkLength - 1)
             );
             offset += (sigLength + pkLength);
         }
 
-        return fp;
+        return BlockFinalizationProof(round, fp);
     }
 
     function parseHeader(
@@ -217,9 +229,11 @@ library Verify {
         offset += pkLength;
 
         {
+            uint64 round = Utils.reverse64(hexEncodedData.toUint64(offset));
+            offset += strUint64Length;
             uint64 len = Utils.reverse64(hexEncodedData.toUint64(offset));
             offset += strUint64Length;
-            blockHeader.prevBlockFinalizationProof = new TypedSignature[](len);
+            Signatures[] memory signatures = new Signatures[](len);
 
             bytes memory _sig;
             bytes memory _signer;
@@ -231,8 +245,9 @@ library Verify {
                     _signer = hexEncodedData.slice(offset + 1, pkLength - 1);
                     offset += pkLength;
 
-                    blockHeader.prevBlockFinalizationProof[i] = TypedSignature(_sig, _signer);
+                    signatures[i] = Signatures(_sig, _signer);
                 }
+                blockHeader.prevBlockFinalizationProof = BlockFinalizationProof(round, signatures);
             }
         }
 
@@ -300,8 +315,13 @@ library Verify {
         fungibleTokenTransfer.tokenAddress = executionData.toAddress(offset);
         offset += addressLength;
 
-        fungibleTokenTransfer.amount = Utils.reverse128(executionData.toUint128(offset));
-        offset += uint128Length;
+        uint64 lenOfHex = Utils.reverse64(executionData.toUint64(offset));
+        offset += strUint64Length;
+
+        fungibleTokenTransfer.amount = uint128(
+            Strings.stringToUint(string(executionData.slice(offset, lenOfHex)))
+        );
+        offset += lenOfHex;
 
         fungibleTokenTransfer.receiverAddress = executionData.toAddress(offset);
     }
