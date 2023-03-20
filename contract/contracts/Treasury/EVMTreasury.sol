@@ -146,10 +146,11 @@ contract EVMTreasury is ReentrancyGuard, IERC721Receiver, IEVMTreasury {
     function updateLightClient(bytes memory header, bytes calldata proof) public {
         Verify.BlockHeader memory _prevBlockHeader = Verify.parseHeader(lightClient.lastHeader);
         Verify.BlockHeader memory _blockHeader = Verify.parseHeader(header);
-        Verify.TypedSignature[] memory _proof = Verify.parseProof(proof);
+        Verify.BlockFinalizationProof memory _proof = Verify.parseProof(proof);
+        bytes32 signingData = keccak256(abi.encodePacked(keccak256(header), _proof.round));
 
         Verify.verifyHeaderToHeader(lightClient.lastHeader, _prevBlockHeader, _blockHeader);
-        Verify.verifyFinalizationProof(_blockHeader, keccak256(header), _proof);
+        Verify.verifyFinalizationProof(_blockHeader, signingData, _proof);
 
         lightClient.lastHeader = header;
         lightClient.commitRoots.push(_blockHeader.commitMerkleRoot);
