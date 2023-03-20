@@ -105,12 +105,12 @@ library Verify {
     /**
      * @dev Verifies finalization proof with TypedSignature.
      * @param header Decoded header.
-     * @param headerHash Keccak256 hashed header.
+     * @param finalizationSignTarget Signing data.
      * @param finalizationProof BlockFinalizationProof.
      */
     function verifyFinalizationProof(
         BlockHeader memory header,
-        bytes32 headerHash,
+        bytes32 finalizationSignTarget,
         BlockFinalizationProof memory finalizationProof
     ) internal pure {
         uint256 _totalVotingPower;
