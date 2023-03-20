@@ -121,7 +121,10 @@ library Verify {
         Signatures[] memory signatures = finalizationProof.blockFinalizationSignatures;
         for (uint j = 0; j < signatures.length; j++) {
             (bytes32 r, bytes32 s, uint8 v) = splitSignature(signatures[j].signature);
-            if (Utils.pkToAddress(signatures[j].signer) == ecrecover(headerHash, v, r, s)) {
+            if (
+                Utils.pkToAddress(signatures[j].signer) ==
+                ecrecover(finalizationSignTarget, v, r, s)
+            ) {
                 require(
                     keccak256(signatures[j].signer) == keccak256(header.validators[j].validator)
                 );
