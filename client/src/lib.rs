@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use eyre::Error;
 use merkle_tree::MerkleProof;
 use rust_decimal::Decimal;
-use simperby_common::*;
+use simperby_core::*;
 use simperby_settlement::*;
 
 pub struct Ethereum {}
@@ -21,7 +21,11 @@ impl SettlementChain for Ethereum {
         todo!()
     }
 
-    async fn get_relayer_account_info(&self) -> Result<(String, Decimal), Error> {
+    async fn get_contract_sequence(&self) -> Result<u128, Error> {
+        todo!()
+    }
+
+    async fn get_relayer_account_info(&self) -> Result<(HexSerializedVec, Decimal), Error> {
         todo!()
     }
 
@@ -31,15 +35,15 @@ impl SettlementChain for Ethereum {
 
     async fn get_treasury_fungible_token_balance(
         &self,
-        _address: String,
+        _address: HexSerializedVec,
     ) -> Result<Decimal, Error> {
         todo!()
     }
 
     async fn get_treasury_non_fungible_token_balance(
         &self,
-        _address: String,
-    ) -> Result<Vec<String>, Error> {
+        _address: HexSerializedVec,
+    ) -> Result<Vec<HexSerializedVec>, Error> {
         todo!()
     }
 
@@ -56,6 +60,29 @@ impl SettlementChain for Ethereum {
         _transaction: Transaction,
         _block_height: u64,
         _proof: MerkleProof,
+    ) -> Result<(), Error> {
+        todo!()
+    }
+
+    async fn eoa_get_sequence(&self, address: HexSerializedVec) -> Result<u128, Error> {
+        todo!()
+    }
+
+    async fn eoa_get_fungible_token_balance(
+        &self,
+        address: HexSerializedVec,
+        token_address: HexSerializedVec,
+    ) -> Result<Decimal, Error> {
+        todo!()
+    }
+
+    async fn eoa_transfer_fungible_token(
+        &self,
+        address: HexSerializedVec,
+        sender_private_key: HexSerializedVec,
+        token_address: HexSerializedVec,
+        receiver_address: HexSerializedVec,
+        amount: Decimal,
     ) -> Result<(), Error> {
         todo!()
     }
