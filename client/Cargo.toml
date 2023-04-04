@@ -15,5 +15,9 @@ log = "0.4"
 thiserror = "1.0.32"
 rust_decimal = "1.25.0"
 simperby-settlement = { git = "https://github.com/postech-dao/simperby" }
-simperby-common = { git = "https://github.com/postech-dao/simperby" }
+simperby-core = { git = "https://github.com/postech-dao/simperby" }
 eyre = "0.6.8"
+ethers = "2.0.2"
+ethers-providers = "2.0.2"
+ethers-core = "2.0.2"
+dotenvy_macro = "0.15.7"
