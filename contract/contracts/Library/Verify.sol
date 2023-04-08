@@ -89,7 +89,7 @@ library Verify {
             }
         }
 
-        bytes32 sigingData = keccak256(
+        bytes32 finaliztionSignData = keccak256(
             abi.encodePacked(
                 _blockHeader.previousHash,
                 _blockHeader.prevBlockFinalizationProof.round
@@ -97,7 +97,7 @@ library Verify {
         );
         verifyFinalizationProof(
             _prevBlockHeader,
-            sigingData,
+            finaliztionSignData,
             _blockHeader.prevBlockFinalizationProof
         );
     }
