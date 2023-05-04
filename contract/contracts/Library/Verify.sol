@@ -25,14 +25,14 @@ library Verify {
     uint constant strUint64Length = 8;
     uint constant enumLength = 4;
 
-    struct Signatures {
+    struct TypedSignature {
         bytes signature;
         bytes signer;
     }
 
     struct BlockFinalizationProof {
         uint64 round;
-        Signatures[] blockFinalizationSignatures;
+        TypedSignature[] blockFinalizationSignatures;
     }
 
     struct ValidatorSet {
@@ -89,7 +89,7 @@ library Verify {
             }
         }
 
-        bytes32 finaliztionSignData = keccak256(
+        bytes32 finalizationSignData = keccak256(
             abi.encodePacked(
                 _blockHeader.previousHash,
                 _blockHeader.prevBlockFinalizationProof.round
@@ -97,7 +97,7 @@ library Verify {
         );
         verifyFinalizationProof(
             _prevBlockHeader,
-            finaliztionSignData,
+            finalizationSignData,
             _blockHeader.prevBlockFinalizationProof
         );
     }
@@ -118,7 +118,7 @@ library Verify {
         for (uint i = 0; i < header.validators.length; i++) {
             _totalVotingPower += header.validators[i].votingPower;
         }
-        Signatures[] memory signatures = finalizationProof.blockFinalizationSignatures;
+        TypedSignature[] memory signatures = finalizationProof.blockFinalizationSignatures;
         for (uint j = 0; j < signatures.length; j++) {
             (bytes32 r, bytes32 s, uint8 v) = splitSignature(signatures[j].signature);
             if (
@@ -210,10 +210,10 @@ library Verify {
             "Verify::parseProof: Invalid proof length"
         );
 
-        Signatures[] memory fp = new Signatures[](len);
+        TypedSignature[] memory fp = new TypedSignature[](len);
 
         for (uint256 i = 0; i < len; i++) {
-            fp[i] = Signatures(
+            fp[i] = TypedSignature(
                 input.slice(offset, sigLength),
                 input.slice(offset + sigLength + 1, pkLength - 1)
             );
@@ -236,7 +236,7 @@ library Verify {
             offset += strUint64Length;
             uint64 len = Utils.reverse64(hexEncodedData.toUint64(offset));
             offset += strUint64Length;
-            Signatures[] memory signatures = new Signatures[](len);
+            TypedSignature[] memory signatures = new TypedSignature[](len);
 
             bytes memory _sig;
             bytes memory _signer;
@@ -248,7 +248,7 @@ library Verify {
                     _signer = hexEncodedData.slice(offset + 1, pkLength - 1);
                     offset += pkLength;
 
-                    signatures[i] = Signatures(_sig, _signer);
+                    signatures[i] = TypedSignature(_sig, _signer);
                 }
                 blockHeader.prevBlockFinalizationProof = BlockFinalizationProof(round, signatures);
             }
